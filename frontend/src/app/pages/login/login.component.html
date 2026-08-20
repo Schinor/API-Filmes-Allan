@@ -1,0 +1,121 @@
+<div class="login-bg">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>🎬 Catálogo Tom Hanks</h1>
+      <p>Faça login para acessar o catálogo</p>
+    </div>
+
+    <div class="tabs">
+      <button
+        type="button"
+        [class.active]="modo() === 'login'"
+        (click)="mudarModo('login')"
+      >
+        Entrar
+      </button>
+      <button
+        type="button"
+        [class.active]="modo() === 'cadastro'"
+        (click)="mudarModo('cadastro')"
+      >
+        Cadastrar
+      </button>
+    </div>
+
+    @if (erro()) {
+      <div class="alert alert-error">{{ erro() }}</div>
+    }
+    @if (sucesso()) {
+      <div class="alert alert-success">{{ sucesso() }}</div>
+    }
+
+    @if (modo() === 'login') {
+      <form (ngSubmit)="entrar()" #loginForm="ngForm">
+        <div class="field">
+          <label for="login-email">E-mail</label>
+          <input
+            id="login-email"
+            type="email"
+            [(ngModel)]="email"
+            name="email"
+            required
+            autocomplete="username"
+            [disabled]="carregando()"
+            placeholder="seu@email.com"
+          />
+        </div>
+        <div class="field">
+          <label for="login-senha">Senha</label>
+          <input
+            id="login-senha"
+            type="password"
+            [(ngModel)]="senha"
+            name="senha"
+            required
+            autocomplete="current-password"
+            [disabled]="carregando()"
+            placeholder="••••••••"
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn-primary"
+          [disabled]="carregando()"
+        >
+          {{ carregando() ? 'Entrando...' : 'Entrar' }}
+        </button>
+      </form>
+    }
+
+    @if (modo() === 'cadastro') {
+      <form (ngSubmit)="registrar()" #cadForm="ngForm">
+        <div class="field">
+          <label for="cad-nome">Nome</label>
+          <input
+            id="cad-nome"
+            type="text"
+            [(ngModel)]="nome"
+            name="nome"
+            required
+            autocomplete="name"
+            [disabled]="carregando()"
+            placeholder="Seu nome"
+          />
+        </div>
+        <div class="field">
+          <label for="cad-email">E-mail</label>
+          <input
+            id="cad-email"
+            type="email"
+            [(ngModel)]="email"
+            name="email"
+            required
+            autocomplete="username"
+            [disabled]="carregando()"
+            placeholder="seu@email.com"
+          />
+        </div>
+        <div class="field">
+          <label for="cad-senha">Senha</label>
+          <input
+            id="cad-senha"
+            type="password"
+            [(ngModel)]="senha"
+            name="senha"
+            required
+            autocomplete="new-password"
+            [disabled]="carregando()"
+            placeholder="Mínimo 6 caracteres"
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn-primary"
+          [disabled]="carregando()"
+        >
+          {{ carregando() ? 'Cadastrando...' : 'Criar conta' }}
+        </button>
+      </form>
+    }
+  </div>
+</div>

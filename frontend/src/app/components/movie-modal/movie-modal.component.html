@@ -1,0 +1,71 @@
+<div class="modal-backdrop" (click)="fechar.emit()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <button class="modal-close" (click)="fechar.emit()">✕</button>
+
+    <div class="modal-body">
+      <div class="modal-poster">
+        @if (filme.poster_url) {
+          <img [src]="filme.poster_url" [alt]="filme.titulo" />
+        } @else {
+          <div class="no-poster">Sem pôster</div>
+        }
+      </div>
+
+      <div class="modal-info">
+        <h2>{{ filme.titulo }}</h2>
+        @if (filme.data_lancamento) {
+          <span class="release-date">{{ filme.data_lancamento | slice:0:4 }}</span>
+        }
+        <p class="sinopse">{{ filme.sinopse || 'Sinopse não disponível.' }}</p>
+
+        <div class="modal-actions">
+          <button
+            class="btn-fav"
+            [class.favoritado]="isFavoritado()"
+            (click)="toggleFavorito()"
+            [disabled]="loadingFav()"
+          >
+            {{ isFavoritado() ? '★ Favoritado' : '☆ Favoritar' }}
+          </button>
+        </div>
+
+        <div class="comentarios-section">
+          <h3>Meus comentários</h3>
+
+          <div class="comentario-form">
+            <textarea
+              [(ngModel)]="novoComentario"
+              placeholder="Escreva um comentário..."
+              rows="3"
+            ></textarea>
+            <button
+              class="btn-comentar"
+              (click)="addComentario()"
+              [disabled]="!novoComentario.trim() || loadingCom()"
+            >
+              Comentar
+            </button>
+          </div>
+
+          @if (loadingCom()) {
+            <p class="loading-text">Carregando...</p>
+          }
+
+          <div class="comentarios-lista">
+            @for (c of comentarios(); track c.id) {
+              <div class="comentario-item">
+                <p>{{ c.texto }}</p>
+                <div class="comentario-meta">
+                  <span>{{ c.criado_em | slice:0:10 }}</span>
+                  <button class="btn-del" (click)="deletarComentario(c.id)">🗑</button>
+                </div>
+              </div>
+            } @empty {
+              <p class="empty-text">Nenhum comentário ainda.</p>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

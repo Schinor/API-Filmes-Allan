@@ -1,0 +1,52 @@
+<div class="fav-container">
+  <div class="fav-header">
+    <h1>⭐ Meus Favoritos</h1>
+    <a routerLink="/catalogo" class="btn-back">← Voltar ao catálogo</a>
+  </div>
+
+  @if (carregando()) {
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Carregando favoritos...</p>
+    </div>
+  } @else if (favoritos().length === 0) {
+    <div class="empty">
+      <p>Você ainda não favoritou nenhum filme.</p>
+      <a routerLink="/catalogo" class="btn-primary">Explorar catálogo</a>
+    </div>
+  } @else {
+    <p class="count">{{ favoritos().length }} filme(s) favoritado(s)</p>
+    <div class="fav-grid">
+      @for (fav of favoritos(); track fav.id) {
+        <div class="fav-card" (click)="abrirFilme(fav)">
+          @if (fav.poster_path) {
+            <img
+              [src]="'https://image.tmdb.org/t/p/w500' + fav.poster_path"
+              [alt]="fav.titulo"
+            />
+          } @else {
+            <div class="no-poster">🎬</div>
+          }
+          <div class="fav-info">
+            <h4>{{ fav.titulo }}</h4>
+            <button
+              class="btn-remove"
+              (click)="$event.stopPropagation(); remover(fav)"
+            >
+              Remover
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (filmeAberto()) {
+    <app-movie-modal
+      [filme]="filmeAberto()!"
+      [favoritadoInicial]="true"
+      (fechar)="fecharModal()"
+      (favoritoAlterado)="onFavoritoAlterado($event)"
+    />
+  }
+</div>

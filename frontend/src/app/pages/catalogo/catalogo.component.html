@@ -1,0 +1,48 @@
+<div class="catalogo-container">
+  <div class="catalogo-header">
+    <h1>Filmes com <span class="highlight">Tom Hanks</span></h1>
+    <div class="search-box">
+      <input
+        type="text"
+        [ngModel]="busca()"
+        (ngModelChange)="busca.set($event)"
+        placeholder="🔍 Filtrar filmes..."
+        class="search-input"
+      />
+    </div>
+  </div>
+
+  @if (carregando()) {
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Buscando filmes na TMDB...</p>
+    </div>
+  } @else if (erro()) {
+    <div class="erro-msg">
+      <p>{{ erro() }}</p>
+      <button (click)="carregar()" class="btn-retry">Tentar novamente</button>
+    </div>
+  } @else {
+    <div class="filmes-count">
+      {{ filmesFiltrados().length }} filme(s) encontrado(s)
+    </div>
+    <div class="filmes-grid">
+      @for (filme of filmesFiltrados(); track filme.id) {
+        <app-movie-card
+          [filme]="filme"
+          [isFavoritado]="idsFavoritos().has(filme.id)"
+          (abrir)="abrirModal($event)"
+        />
+      }
+    </div>
+  }
+
+  @if (filmeAberto()) {
+    <app-movie-modal
+      [filme]="filmeAberto()!"
+      [favoritadoInicial]="idsFavoritos().has(filmeAberto()!.id)"
+      (fechar)="fecharModal()"
+      (favoritoAlterado)="onFavoritoAlterado($event)"
+    />
+  }
+</div>

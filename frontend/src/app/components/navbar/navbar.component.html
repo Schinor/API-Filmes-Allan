@@ -1,0 +1,16 @@
+@if (auth.isLoggedIn()) {
+  <nav class="navbar">
+    <div class="navbar-brand">
+      🎬 Tom Hanks — Catálogo
+    </div>
+    <div class="navbar-links">
+      <a routerLink="/catalogo" routerLinkActive="active">Catálogo</a>
+      <a routerLink="/favoritos" routerLinkActive="active">⭐ Favoritos</a>
+      <a routerLink="/comentarios" routerLinkActive="active">💬 Meus Comentários</a>
+    </div>
+    <div class="navbar-user">
+      <span class="user-name">{{ auth.user()?.nome }}</span>
+      <button class="btn-logout" (click)="logout()">Sair</button>
+    </div>
+  </nav>
+}
