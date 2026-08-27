@@ -2,8 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import get_current_user
-from app.models.usuario import Usuario
+from app.core.security import get_current_user, CurrentUser
 from app.repositories import comentario_repo
 from app.schemas.comentario import ComentarioCreate, ComentarioOut
 
@@ -12,7 +11,7 @@ router = APIRouter(prefix="/api/comentarios", tags=["comentarios"])
 
 @router.get("", response_model=List[ComentarioOut])
 def listar_meus_comentarios(
-    current_user: Usuario = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Lista todos os comentários do usuário logado — isolado por usuario_id."""
@@ -22,7 +21,7 @@ def listar_meus_comentarios(
 @router.get("/{tmdb_movie_id}", response_model=List[ComentarioOut])
 def listar_comentarios(
     tmdb_movie_id: int,
-    current_user: Usuario = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Lista comentários do usuário logado para um filme específico — isolado por usuario_id."""
@@ -32,7 +31,7 @@ def listar_comentarios(
 @router.post("", response_model=ComentarioOut, status_code=status.HTTP_201_CREATED)
 def comentar(
     payload: ComentarioCreate,
-    current_user: Usuario = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Cria um comentário do usuário logado para um filme."""
@@ -42,7 +41,7 @@ def comentar(
 @router.delete("/{comentario_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_comentario(
     comentario_id: int,
-    current_user: Usuario = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Remove um comentário — só o próprio dono pode remover."""
