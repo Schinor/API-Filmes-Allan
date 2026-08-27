@@ -1,6 +1,7 @@
 .env
 *.env
 backend/.env
+ia.md
 
 # Python
 __pycache__/
