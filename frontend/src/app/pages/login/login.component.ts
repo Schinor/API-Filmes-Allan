@@ -13,7 +13,7 @@ export class LoginComponent {
   auth = inject(AuthService);
   router = inject(Router);
 
-  modo = signal<'login' | 'cadastro'>('login');
+  modo = signal<'login' | 'cadastro' | 'esqueci-senha'>('login');
   carregando = signal(false);
   erro = signal('');
   sucesso = signal('');
@@ -21,8 +21,9 @@ export class LoginComponent {
   email = '';
   senha = '';
   nome = '';
+  emailRecuperacao = '';
 
-  mudarModo(novoModo: 'login' | 'cadastro') {
+  mudarModo(novoModo: 'login' | 'cadastro' | 'esqueci-senha') {
     this.modo.set(novoModo);
     this.erro.set('');
     this.sucesso.set('');
@@ -88,6 +89,32 @@ export class LoginComponent {
     });
   }
 
+  solicitarRecuperacao() {
+    this.erro.set('');
+    this.sucesso.set('');
+
+    const emailTrimmed = this.emailRecuperacao.trim();
+    if (!emailTrimmed) {
+      this.erro.set('Por favor, informe seu e-mail.');
+      return;
+    }
+
+    this.carregando.set(true);
+    this.auth.esqueciSenha(emailTrimmed).subscribe({
+      next: (res) => {
+        this.carregando.set(false);
+        this.sucesso.set(
+          res.message || 'E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada no Mailtrap.'
+        );
+        this.emailRecuperacao = '';
+      },
+      error: (e) => {
+        this.carregando.set(false);
+        this.erro.set(this.extrairErro(e, 'Erro ao solicitar recuperação de senha.'));
+      },
+    });
+  }
+
   private extrairErro(e: any, fallback: string): string {
     if (!e) return fallback;
     if (typeof e.error?.detail === 'string') {
@@ -102,7 +129,7 @@ export class LoginComponent {
       return e.error.message;
     }
     if (e.status === 0) {
-      return 'Não foi possível conectar ao servidor. Verifique se o backend está em execução.';
+      return 'Não foi possível conectar ao servidor. Verifique se o catálogo e o auth-service estão em execução.';
     }
     return fallback;
   }

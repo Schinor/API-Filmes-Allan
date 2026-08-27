@@ -2,25 +2,31 @@
   <div class="login-card">
     <div class="login-header">
       <h1>🎬 Catálogo Tom Hanks</h1>
-      <p>Faça login para acessar o catálogo</p>
+      @if (modo() === 'esqueci-senha') {
+        <p>Recuperação de Acesso à Conta</p>
+      } @else {
+        <p>Faça login para acessar o catálogo</p>
+      }
     </div>
 
-    <div class="tabs">
-      <button
-        type="button"
-        [class.active]="modo() === 'login'"
-        (click)="mudarModo('login')"
-      >
-        Entrar
-      </button>
-      <button
-        type="button"
-        [class.active]="modo() === 'cadastro'"
-        (click)="mudarModo('cadastro')"
-      >
-        Cadastrar
-      </button>
-    </div>
+    @if (modo() !== 'esqueci-senha') {
+      <div class="tabs">
+        <button
+          type="button"
+          [class.active]="modo() === 'login'"
+          (click)="mudarModo('login')"
+        >
+          Entrar
+        </button>
+        <button
+          type="button"
+          [class.active]="modo() === 'cadastro'"
+          (click)="mudarModo('cadastro')"
+        >
+          Cadastrar
+        </button>
+      </div>
+    }
 
     @if (erro()) {
       <div class="alert alert-error">{{ erro() }}</div>
@@ -45,7 +51,17 @@
           />
         </div>
         <div class="field">
-          <label for="login-senha">Senha</label>
+          <div class="field-header">
+            <label for="login-senha">Senha</label>
+            <a
+              type="button"
+              class="link-forgot"
+              (click)="mudarModo('esqueci-senha')"
+              tabindex="0"
+            >
+              Esqueceu a senha?
+            </a>
+          </div>
           <input
             id="login-senha"
             type="password"
@@ -115,6 +131,44 @@
         >
           {{ carregando() ? 'Cadastrando...' : 'Criar conta' }}
         </button>
+      </form>
+    }
+
+    @if (modo() === 'esqueci-senha') {
+      <form (ngSubmit)="solicitarRecuperacao()" #forgotForm="ngForm">
+        <p class="forgot-instruction">
+          Informe seu e-mail cadastrado. Enviaremos um link seguro via <strong>Mailtrap</strong> para você redefinir sua senha em até 30 minutos.
+        </p>
+        <div class="field">
+          <label for="forgot-email">E-mail cadastrado</label>
+          <input
+            id="forgot-email"
+            type="email"
+            [(ngModel)]="emailRecuperacao"
+            name="emailRecuperacao"
+            required
+            autocomplete="email"
+            [disabled]="carregando()"
+            placeholder="seu@email.com"
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn-primary"
+          [disabled]="carregando()"
+        >
+          {{ carregando() ? 'Enviando e-mail...' : 'Enviar link de recuperação' }}
+        </button>
+        <div class="back-to-login">
+          <button
+            type="button"
+            class="btn-secondary"
+            (click)="mudarModo('login')"
+            [disabled]="carregando()"
+          >
+            ← Voltar para o login
+          </button>
+        </div>
       </form>
     }
   </div>

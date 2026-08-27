@@ -40,9 +40,26 @@
   gap: 1rem;
 }
 
+.user-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .user-name {
   color: #b3b3b3;
   font-size: 0.9rem;
+}
+
+.badge-admin {
+  background: #e50914;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .btn-logout {
@@ -53,6 +70,7 @@
   border-radius: 4px;
   font-size: 0.85rem;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
 .btn-logout:hover {

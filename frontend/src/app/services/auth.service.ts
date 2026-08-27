@@ -6,11 +6,28 @@ export interface Usuario {
   id: number;
   nome: string;
   email: string;
+  role?: string;
 }
 
 export interface Token {
   access_token: string;
   token_type: string;
+  user?: Usuario;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  token?: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export interface ValidateTokenResponse {
+  valid: boolean;
+  email?: string;
+  message?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -26,6 +43,7 @@ export class AuthService {
   readonly token = this._token.asReadonly();
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => !!this._token());
+  readonly isAdmin = computed(() => this._user()?.role === 'admin');
 
   constructor(private http: HttpClient) {
     if (this._token()) {
@@ -33,11 +51,12 @@ export class AuthService {
     }
   }
 
-  cadastrar(nome: string, email: string, senha: string): Observable<Usuario> {
+  cadastrar(nome: string, email: string, senha: string, role: string = 'usuario'): Observable<Usuario> {
     return this.http.post<Usuario>('/api/auth/cadastro', {
       nome: nome.trim(),
       email: email.trim(),
       senha,
+      role,
     });
   }
 
@@ -54,7 +73,12 @@ export class AuthService {
         tap((res) => {
           this._token.set(res.access_token);
           localStorage.setItem(this.TOKEN_KEY, res.access_token);
-          this.carregarPerfil();
+          if (res.user) {
+            this._user.set(res.user);
+            localStorage.setItem(this.USER_KEY, JSON.stringify(res.user));
+          } else {
+            this.carregarPerfil();
+          }
         })
       );
   }
@@ -69,6 +93,23 @@ export class AuthService {
         // Se o token estiver expirado ou inválido, limpa a sessão
         this.logout();
       },
+    });
+  }
+
+  esqueciSenha(email: string): Observable<ForgotPasswordResponse> {
+    return this.http.post<ForgotPasswordResponse>('/api/auth/forgot-password', {
+      email: email.trim(),
+    });
+  }
+
+  validarTokenReset(token: string): Observable<ValidateTokenResponse> {
+    return this.http.get<ValidateTokenResponse>(`/api/auth/validate-reset-token/${encodeURIComponent(token)}`);
+  }
+
+  redefinirSenha(token: string, novaSenha: string): Observable<ResetPasswordResponse> {
+    return this.http.post<ResetPasswordResponse>('/api/auth/reset-password', {
+      token,
+      nova_senha: novaSenha,
     });
   }
 

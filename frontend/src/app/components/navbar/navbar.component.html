@@ -9,7 +9,12 @@
       <a routerLink="/comentarios" routerLinkActive="active">💬 Meus Comentários</a>
     </div>
     <div class="navbar-user">
-      <span class="user-name">{{ auth.user()?.nome }}</span>
+      <div class="user-badge-container">
+        <span class="user-name">{{ auth.user()?.nome }}</span>
+        @if (auth.user()?.role === 'admin') {
+          <span class="badge-admin">Admin</span>
+        }
+      </div>
       <button class="btn-logout" (click)="logout()">Sair</button>
     </div>
   </nav>
