@@ -60,33 +60,26 @@ Na **Atividade 3**, toda a responsabilidade de autenticação e identidade foi d
 
 ---
 
-## 📸 Demonstração e Telas de Recuperação de Senha
+## 📸 Demonstração do Fluxo de Recuperação de Senha
 
 ### 1. Solicitação de Recuperação de Senha
 O usuário informa o e-mail cadastrado na tela de login clicando em *"Esqueceu a senha?"*:
 
-![Solicitação de Recuperação](docs/screenshots/01-solicitacao-recuperacao.png)
+![Solicitação de Recuperação](assets/Site_Funcionando.png)
 
 ---
 
 ### 2. E-mail Real Recebido no Mailtrap Sandbox
-O microsserviço dispara um e-mail HTML/texto via SMTP contendo o link seguro de uso único:
+O microsserviço `auth-service` dispara um e-mail HTML/texto via SMTP contendo o link seguro de uso único e validade de 30 minutos:
 
-![E-mail Recebido no Mailtrap](docs/screenshots/02-email-mailtrap.png)
-
----
-
-### 3. Redefinição de Senha
-Ao clicar no link do e-mail, a rota pública do catálogo (`/reset-password?token=...`) valida o token e permite a criação da nova senha:
-
-![Redefinição de Senha](docs/screenshots/03-redefinicao-senha.png)
+![E-mail Recebido no Mailtrap](assets/Site_Funcionando1.png)
 
 ---
 
-### 4. Validação de Segurança (Link Expirado ou Já Utilizado)
-Caso o link tenha mais de 30 minutos ou já tenha sido usado, o sistema recusa a troca e exige uma nova solicitação:
+### 3. Redefinição de Senha via Rota do Catálogo
+Ao clicar no link do e-mail, a rota pública do catálogo (`/reset-password?token=...`) valida o token e permite a criação da nova senha com segurança:
 
-![Tentativa Recusada](docs/screenshots/04-link-expirado-recusado.png)
+![Redefinição de Senha](assets/Site_Funcionando2.png)
 
 ---
 
@@ -189,7 +182,7 @@ RESET_TOKEN_EXPIRE_MINUTES=30
 
 ## 🏃 Como Executar
 
-### 1. Subir toda a aplicação
+### 1. Execução Local com Docker Compose
 
 ```bash
 docker compose up --build
@@ -199,6 +192,25 @@ docker compose up --build
 - **Documentação da API (Catálogo):** `http://localhost:8000/api/docs`
 
 > O `auth-service` não aceita conexões diretas do host (`curl http://localhost:8001` falhará propositalmente), garantindo o isolamento da rede interna.
+
+---
+
+### 2. Deploy no Portainer (Stack de Microsserviços)
+
+1. Acesse o **Portainer** do servidor.
+2. Vá em **Stacks** ➔ **Add Stack**.
+3. Selecione **Repository**:
+   - **Repository URL:** URL do seu repositório GitHub
+   - **Repository reference:** `refs/heads/feature/auth-microservice` (ou a branch de entrega)
+   - **Compose path:** `docker-compose.yml`
+4. Na seção **Environment variables**, adicione as variáveis de ambiente necessárias:
+   - `PORT`: Porta reservada atribuída ao seu usuário
+   - `DATABASE_URL`: String de conexão do seu banco MariaDB existente
+   - `TMDB_API_KEY`: Seu Bearer Token da TMDB
+   - `SECRET_KEY`: Sua chave secreta JWT
+   - `MAILTRAP_USERNAME`: Usuário do Mailtrap Sandbox
+   - `MAILTRAP_PASSWORD`: Senha do Mailtrap Sandbox
+5. Clique em **Deploy the stack**. O Portainer fará o build do `catalogo` e do `auth-service` e subirá a stack conectada na rede privada.
 
 ---
 
