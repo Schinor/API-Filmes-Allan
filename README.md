@@ -1,17 +1,17 @@
 # 🎬 Catálogo de Filmes — Tom Hanks (Arquitetura de Microsserviços)
 
-Aplicação web fullstack para navegar no catálogo de filmes estrelados por Tom Hanks, com sistema de favoritos, comentários e microsserviço dedicado de **autenticação e gerenciamento de identidade**.
+Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Hanks, com sistema de favoritos, comentários e microsserviço dedicado de **autenticação, controle de acesso e recuperação de senha**.
 
-> **Disciplina de Cloud Computing**
+> **Disciplina:** Cloud Computing / Arquitetura de Software  
 > **Professor:** [@siriani](https://github.com/siriani)
 
 ---
 
-## 🏛️ Evolução Arquitetural: Do Monólito aos Microsserviços
+## 🏛️ Evolução Arquitetural: Monólito ➔ Microsserviços
 
-Na Atividade 2, a aplicação rodava em um único container monolítico contendo a interface Angular, a API do Catálogo e a lógica de autenticação e acesso ao banco de dados no mesmo deploy.
+Na **Atividade 2**, o catálogo rodava em um único container monolítico (FastAPI + Angular) com regras de negócio, dados e autenticação acoplados no mesmo deploy.
 
-Na **Atividade 3**, a responsabilidade de autenticação e identidade de usuários foi extraída para um **microsserviço independente (`auth-service`)**.
+Na **Atividade 3**, toda a responsabilidade de autenticação e identidade foi desacoplada para um **segundo container independente (`auth-service`)**, mantendo o catálogo como o **único ponto de entrada público**.
 
 ```
                            REDE EXTERNA (HOST)
@@ -53,31 +53,46 @@ Na **Atividade 3**, a responsabilidade de autenticação e identidade de usuári
           └───────────────────────┘     └───────────────────────┘
 ```
 
-### Por que desacoplar a autenticação?
-1. **Isolamento de Responsabilidade:** O catálogo foca em regras de negócio de filmes, favoritos e comentários, enquanto o `auth-service` gerencia credenciais, sessões, tokens e segurança.
-2. **Segurança Aumentada (Defesa em Profundidade):** O `auth-service` não expõe portas para o host (`ports:` omitido no Compose) e é acessível **apenas** internamente pela rede Docker `filmes-network`.
-3. **Escalabilidade e Manutenibilidade:** O serviço de autenticação pode evoluir ou ser reutilizado por outros serviços sem impacto no catálogo.
+### Principais Benefícios da Arquitetura
+1. **Isolamento Real de Responsabilidades:** Regras de negócio de catálogo e autenticação rodam em processos e containers separados.
+2. **Defesa em Profundidade:** O `auth-service` **não possui portas publicadas para o host**, sendo acessível apenas pela rede Docker interna (`filmes-network`).
+3. **Ponto de Entrada Único:** Todas as requisições públicas (incluindo o link de troca de senha) chegam pelo Catálogo, que encaminha internamente as chamadas de autenticação.
 
 ---
 
-## 🚀 Funcionalidades
+## 📸 Demonstração e Telas de Recuperação de Senha
 
-- **Catálogo de Filmes em Tempo Real:** Conexão direta com a API TMDB para exibição de filmes, pôsteres e sinopses.
-- **Autenticação via Microsserviço:** Cadastro e login com JWT assinado e validação de sessão.
-- **Papéis de Usuário (Roles):** Suporte nativo a papéis `usuario` e `admin`, com identificação na interface e endpoints de consulta (`GET /users/{id}/role`).
-- **Fluxo Completo de "Esqueci Minha Senha":**
-  - Solicitação de link informando e-mail.
-  - Geração de token único gravado na tabela `reset_tokens`.
-  - Disparo de e-mail formatado via SMTP (Mailtrap) com link direcionado para a rota do Catálogo.
-  - Validação estrita: link expira em **30 minutos** e é de **uso único** (`usado = true`).
-  - Troca da senha com hash bcrypt seguro.
-- **Favoritos e Comentários Isolados:** Cada usuário gerencia seus próprios dados de forma independente.
+### 1. Solicitação de Recuperação de Senha
+O usuário informa o e-mail cadastrado na tela de login clicando em *"Esqueceu a senha?"*:
+
+![Solicitação de Recuperação](docs/screenshots/01-solicitacao-recuperacao.png)
+
+---
+
+### 2. E-mail Real Recebido no Mailtrap Sandbox
+O microsserviço dispara um e-mail HTML/texto via SMTP contendo o link seguro de uso único:
+
+![E-mail Recebido no Mailtrap](docs/screenshots/02-email-mailtrap.png)
+
+---
+
+### 3. Redefinição de Senha
+Ao clicar no link do e-mail, a rota pública do catálogo (`/reset-password?token=...`) valida o token e permite a criação da nova senha:
+
+![Redefinição de Senha](docs/screenshots/03-redefinicao-senha.png)
+
+---
+
+### 4. Validação de Segurança (Link Expirado ou Já Utilizado)
+Caso o link tenha mais de 30 minutos ou já tenha sido usado, o sistema recusa a troca e exige uma nova solicitação:
+
+![Tentativa Recusada](docs/screenshots/04-link-expirado-recusado.png)
 
 ---
 
 ## 🐳 Docker Compose — Configuração dos Serviços
 
-Trecho do `docker-compose.yml` ilustrando os dois serviços na rede compartilhada `filmes-network`:
+Trecho do `docker-compose.yml` ilustrando os dois serviços e a rede compartilhada `filmes-network`:
 
 ```yaml
 services:
@@ -99,6 +114,9 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8001
     depends_on:
       - auth-service
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - filmes-network
 
@@ -112,7 +130,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
-      - ALGORITHM=HS256
+      - ALGORITHM=${ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=1440
       - PORT=8001
       - MAILTRAP_HOST=${MAILTRAP_HOST:-sandbox.smtp.mailtrap.io}
@@ -122,6 +140,9 @@ services:
       - MAILTRAP_FROM_EMAIL=${MAILTRAP_FROM_EMAIL:-nao-responda@tomhanksfilmes.com}
       - CATALOGO_URL=${CATALOGO_URL:-http://localhost:8000}
       - RESET_TOKEN_EXPIRE_MINUTES=30
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - filmes-network
 
@@ -134,7 +155,7 @@ networks:
 
 ## ⚙️ Variáveis de Ambiente
 
-Crie ou configure o arquivo `.env` a partir do modelo [.env.example](.env.example):
+Configure as variáveis no seu arquivo `.env` com base no [.env.example](.env.example):
 
 ```env
 # Banco de Dados existente (MariaDB / MySQL compartilhado)
@@ -168,17 +189,16 @@ RESET_TOKEN_EXPIRE_MINUTES=30
 
 ## 🏃 Como Executar
 
-### 1. Subir toda a stack com Docker Compose
+### 1. Subir toda a aplicação
 
 ```bash
 docker compose up --build
 ```
 
-O catálogo estará disponível no seu navegador em:
-- **Aplicação:** `http://localhost:8000`
-- **Docs da API (Catálogo):** `http://localhost:8000/api/docs`
+- **Aplicação Web:** `http://localhost:8000`
+- **Documentação da API (Catálogo):** `http://localhost:8000/api/docs`
 
-> Note que tentar acessar o `auth-service` diretamente a partir do host (`curl http://localhost:8001`) irá falhar intencionalmente, pois o container não expõe portas públicas.
+> O `auth-service` não aceita conexões diretas do host (`curl http://localhost:8001` falhará propositalmente), garantindo o isolamento da rede interna.
 
 ---
 
@@ -231,22 +251,22 @@ CREATE TABLE comentarios (
 
 ## 🧪 Testes Automatizados
 
-O projeto inclui uma suíte completa de testes automatizados com `pytest`:
+Executar a suíte de testes com `pytest`:
 
 ```bash
-pytest tests/ -v
+.venv/bin/pytest tests/ -v
 ```
 
-Casos cobertos:
-- Verificação do endpoint `GET /health` do `auth-service`.
-- Cadastro, login e consulta de dados do usuário autenticado.
-- Validação e retorno de papéis (`usuario`, `admin`).
-- Fluxo de ponta a ponta de "Esqueci Minha Senha" e redefinição com troca de credenciais.
-- **Teste Negativo (Expiração):** Rejeição automática de tokens após 30 minutos.
-- **Teste Negativo (Reuso):** Rejeição automática de tentativa de reuso de token já utilizado.
-- **Teste Negativo (Token Inválido):** Rejeição de tokens inexistentes ou corrompidos.
-- Rotas protegidas do backend Catálogo integradas.
+Cobertura dos testes:
+- Endpoint `GET /health` do `auth-service`.
+- Cadastro, login e consulta de perfil `/me`.
+- Consulta de papéis (`usuario`, `admin`).
+- Fluxo de ponta a ponta de esqueci-senha e redefinição.
+- **Teste Negativo (Expiração):** Recusa de tokens após 30 minutos.
+- **Teste Negativo (Reuso):** Recusa de tokens já marcados como `usado = true`.
+- **Teste Negativo (Token Inválido):** Recusa de tokens inexistentes.
+- Roteamento e proteção das rotas do Catálogo.
 
 ---
 
-*Projeto desenvolvido para a disciplina de Cloud — Professor [@siriani](https://github.com/siriani).*
+*Trabalho desenvolvido para a disciplina de Cloud — Professor [@siriani](https://github.com/siriani).*
