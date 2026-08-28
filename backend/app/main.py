@@ -8,7 +8,6 @@ if BASE_DIR not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.core.database import Base, engine
@@ -43,10 +42,21 @@ app.include_router(filmes_router)
 app.include_router(favoritos_router)
 app.include_router(comentarios_router)
 
-# Serve o frontend Angular (arquivos estáticos gerados pelo build)
+# Serve o frontend Angular (SPA fallback para suporte a HTML5 pushState routing)
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 if not os.path.isdir(STATIC_DIR):
     STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 if os.path.isdir(STATIC_DIR):
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # Se for um arquivo estático existente (JS, CSS, PNG, ICO, etc.)
+        target = os.path.join(STATIC_DIR, full_path)
+        if full_path and os.path.isfile(target):
+            return FileResponse(target)
+
+        # Para qualquer rota do cliente (ex: /reset-password, /login, /catalogo), serve o index.html
+        index_file = os.path.join(STATIC_DIR, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+        return FileResponse(target)
