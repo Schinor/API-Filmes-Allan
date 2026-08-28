@@ -17,6 +17,9 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8001
     depends_on:
       - auth-service
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - filmes-network
     restart: unless-stopped
@@ -44,6 +47,9 @@ services:
       - MAILTRAP_FROM_NAME=${MAILTRAP_FROM_NAME:-Tom Hanks Filmes}
       - CATALOGO_URL=${CATALOGO_URL:-http://localhost:8000}
       - RESET_TOKEN_EXPIRE_MINUTES=${RESET_TOKEN_EXPIRE_MINUTES:-30}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - filmes-network
     restart: unless-stopped

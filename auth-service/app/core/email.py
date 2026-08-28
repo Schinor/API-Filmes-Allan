@@ -13,8 +13,20 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
     O link aponta sempre para a rota pública do Catálogo (porta pública),
     garantindo que o auth-service permaneça isolado na rede interna Docker.
     """
-    reset_url = f"{settings.CATALOGO_URL.rstrip('/')}/reset-password?token={token}"
+    catalogo_url = (settings.CATALOGO_URL or "http://localhost:8000").strip(' "\'').rstrip('/')
+    reset_url = f"{catalogo_url}/reset-password?token={token}"
     subject = "Redefinição de Senha — Catálogo Tom Hanks"
+
+    smtp_host = (settings.MAILTRAP_HOST or "sandbox.smtp.mailtrap.io").strip(' "\'')
+    try:
+        smtp_port = int(str(settings.MAILTRAP_PORT).strip(' "\''))
+    except Exception:
+        smtp_port = 2525
+
+    smtp_user = (settings.MAILTRAP_USERNAME or "").strip(' "\'')
+    smtp_pass = (settings.MAILTRAP_PASSWORD or "").strip(' "\'')
+    from_email = (settings.MAILTRAP_FROM_EMAIL or "nao-responda@tomhanksfilmes.com").strip(' "\'')
+    from_name = (settings.MAILTRAP_FROM_NAME or "Tom Hanks Filmes").strip(' "\'')
 
     html_content = f"""
     <!DOCTYPE html>
@@ -120,29 +132,26 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
         f"Se você não solicitou esta alteração, ignore este e-mail.\n"
     )
 
-    if not settings.MAILTRAP_USERNAME or not settings.MAILTRAP_PASSWORD:
-        logger.warning(
-            "Mailtrap não configurado (MAILTRAP_USERNAME vazio). E-mail de reset gerado com link: %s",
-            reset_url,
-        )
+    if not smtp_user or not smtp_pass:
+        print(f"[auth-service] AVISO: Mailtrap não configurado (MAILTRAP_USERNAME/PASSWORD vazios). Link gerado: {reset_url}")
         return True
 
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"{settings.MAILTRAP_FROM_NAME} <{settings.MAILTRAP_FROM_EMAIL}>"
+        msg["From"] = f"{from_name} <{from_email}>"
         msg["To"] = to_email
 
         msg.attach(MIMEText(text_content, "plain", "utf-8"))
         msg.attach(MIMEText(html_content, "html", "utf-8"))
 
-        with smtplib.SMTP(settings.MAILTRAP_HOST, int(settings.MAILTRAP_PORT), timeout=10) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
             server.starttls()
-            server.login(settings.MAILTRAP_USERNAME, settings.MAILTRAP_PASSWORD)
-            server.sendmail(settings.MAILTRAP_FROM_EMAIL, [to_email], msg.as_string())
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(from_email, [to_email], msg.as_string())
 
-        logger.info("E-mail de recuperação enviado com sucesso via Mailtrap para %s", to_email)
+        print(f"[auth-service] E-mail de recuperação enviado com sucesso via Mailtrap para {to_email}")
         return True
     except Exception as e:
-        logger.error("Erro ao enviar e-mail via Mailtrap para %s: %s", to_email, str(e))
+        print(f"[auth-service] Erro ao enviar e-mail via Mailtrap para {to_email} ({smtp_host}:{smtp_port}): {str(e)}")
         raise
