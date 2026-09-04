@@ -8,6 +8,7 @@ class ComentarioCreate(BaseModel):
 
 class ComentarioOut(BaseModel):
     id: int
+    usuario_id: Optional[int] = None
     tmdb_movie_id: int
     texto: str
     criado_em: datetime
