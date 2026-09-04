@@ -261,6 +261,29 @@ CREATE TABLE comentarios (
 
 ---
 
+## 🛡️ Controle de Acesso Baseado em Papel (RBAC)
+
+### 1. O que cada papel pode fazer
+
+| Papel | Permissões / Ações Permitidas |
+|---|---|
+| **`usuario`** *(padrão no cadastro)* | • Ver catálogo e detalhes de filmes<br>• Criar, listar e remover os **próprios** favoritos<br>• Criar comentários; remover **apenas os próprios** comentários<br>• Ver o próprio perfil (`/auth/me`) e redefinir a própria senha |
+| **`admin`** | • Tudo que o papel `usuario` pode fazer<br>• **Remover comentário de qualquer usuário (moderação de conteúdo)** *(Ação exclusiva de admin)* |
+
+A checagem de permissão acontece **sempre no backend** (`catalogo`, consultando o `auth-service`) — nunca apenas na interface visual. Qualquer requisição direta via Postman, curl ou scripts para `DELETE /api/comentarios/{id}` de outro usuário feita por um usuário comum é recusada com **HTTP 403 Forbidden** (`"Apenas o autor ou um administrador podem remover este comentário"`).
+
+### 2. Padrão de Arquitetura Utilizado: Padrão A vs Padrão B
+
+**Hoje o projeto utiliza o Padrão A (Enforcement Centralizado):**
+O serviço `catalogo` não decodifica o token sozinho para decidir autorizações sensíveis. A cada requisição protegida, o catálogo consulta `GET /auth/me` no `auth-service` através da rede interna privada Docker (`filmes-network`) e utiliza a resposta autoritativa para validar a identidade e o papel (`role`) do usuário. Isso preserva o limite estrito de responsabilidade da arquitetura de microsserviços definida na Atividade 3, onde o `auth-service` é a única autoridade de identidade.
+
+**O que mudaria para o Padrão B (Claims no JWT / Validação Distribuída):**
+No Padrão B, o `catalogo` deixaria de chamar `/auth/me` a cada requisição e passaria a decodificar o token JWT localmente, aproveitando as variáveis `SECRET_KEY` e `ALGORITHM` compartilhadas para ler o claim `role` diretamente do payload assinado.
+- **Vantagem do Padrão B:** Menor latência de rede interna, sem chamadas HTTP síncronas adicionais entre microsserviços.
+- **Desvantagem do Padrão B (Revogação/Consistência):** Com `ACCESS_TOKEN_EXPIRE_MINUTES=1440` (24 horas), se o papel de um usuário for alterado no banco de dados (ex.: rebaixado de `admin` para `usuario`), essa mudança demoraria até 24 horas para surtir efeito no catálogo (até o token expirar e um novo ser gerado). No **Padrão A**, como a consulta ao `auth-service` ocorre em tempo de execução, a alteração de papel tem **efeito imediato**.
+
+---
+
 ## 🧪 Testes Automatizados
 
 Executar a suíte de testes com `pytest`:
@@ -271,14 +294,17 @@ Executar a suíte de testes com `pytest`:
 
 Cobertura dos testes:
 - Endpoint `GET /health` do `auth-service`.
-- Cadastro, login e consulta de perfil `/me`.
-- Consulta de papéis (`usuario`, `admin`).
-- Fluxo de ponta a ponta de esqueci-senha e redefinição.
-- **Teste Negativo (Expiração):** Recusa de tokens após 30 minutos.
-- **Teste Negativo (Reuso):** Recusa de tokens já marcados como `usado = true`.
-- **Teste Negativo (Token Inválido):** Recusa de tokens inexistentes.
+- Cadastro, login e consulta de perfil `/me` com retorno de `role`.
+- Consulta e isolamento de papéis (`usuario`, `admin`).
+- Fluxo de ponta a ponta de esqueci-senha e redefinição com validação de expiração e reuso.
+- **RBAC no Catálogo (`DELETE /api/comentarios/{id}`):**
+  - Usuário comum removendo o próprio comentário ➔ **200 OK**.
+  - Usuário comum tentando remover comentário de outro usuário ➔ **403 Forbidden**.
+  - Usuário admin removendo comentário de qualquer usuário (moderação) ➔ **200 OK**.
+  - Tentativa de remoção de comentário inexistente ➔ **404 Not Found**.
 - Roteamento e proteção das rotas do Catálogo.
 
 ---
 
 *Trabalho desenvolvido para a disciplina de Cloud — Professor [@siriani](https://github.com/siriani).*
+
