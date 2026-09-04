@@ -30,7 +30,18 @@
         </div>
 
         <div class="comentarios-section">
-          <h3>Meus comentários</h3>
+          <h3>
+            Meus comentários
+            @if (auth.isAdmin()) {
+              <span style="font-size: 0.75rem; color: #ff6b6b; font-weight: normal; margin-left: 0.5rem; background: rgba(229,9,20,0.15); padding: 2px 6px; border-radius: 4px;">Modo Admin</span>
+            }
+          </h3>
+
+          @if (erroComentario()) {
+            <p style="color: #ff6b6b; font-size: 0.85rem; background: rgba(229,9,20,0.15); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">
+              ⚠️ {{ erroComentario() }}
+            </p>
+          }
 
           <div class="comentario-form">
             <textarea
@@ -57,7 +68,13 @@
                 <p>{{ c.texto }}</p>
                 <div class="comentario-meta">
                   <span>{{ c.criado_em | slice:0:10 }}</span>
-                  <button class="btn-del" (click)="deletarComentario(c.id)">🗑</button>
+                  <button
+                    class="btn-del"
+                    (click)="deletarComentario(c.id)"
+                    [title]="auth.isAdmin() ? 'Excluir como Admin' : 'Excluir comentário'"
+                  >
+                    🗑
+                  </button>
                 </div>
               </div>
             } @empty {
@@ -65,6 +82,7 @@
             }
           </div>
         </div>
+
       </div>
     </div>
   </div>

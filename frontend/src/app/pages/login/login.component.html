@@ -124,6 +124,19 @@
             placeholder="Mínimo 6 caracteres"
           />
         </div>
+        <div class="field">
+          <label for="cad-role">Papel do Usuário (RBAC)</label>
+          <select
+            id="cad-role"
+            [(ngModel)]="role"
+            name="role"
+            [disabled]="carregando()"
+            class="role-select"
+          >
+            <option value="usuario">👤 Usuário Comum (padrão)</option>
+            <option value="admin">🛡️ Administrador (moderação de comentários)</option>
+          </select>
+        </div>
         <button
           type="submit"
           class="btn-primary"
@@ -131,6 +144,7 @@
         >
           {{ carregando() ? 'Cadastrando...' : 'Criar conta' }}
         </button>
+
       </form>
     }
 

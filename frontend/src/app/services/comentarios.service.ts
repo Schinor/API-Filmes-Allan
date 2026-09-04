@@ -4,10 +4,12 @@ import { Observable } from 'rxjs';
 
 export interface Comentario {
   id: number;
+  usuario_id?: number;
   tmdb_movie_id: number;
   texto: string;
   criado_em: string;
 }
+
 
 @Injectable({ providedIn: 'root' })
 export class ComentariosService {

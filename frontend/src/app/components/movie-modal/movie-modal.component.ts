@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SlicePipe } from '@angular/common';
+import { AuthService } from '../../services/auth.service';
 import { Filme } from '../../services/filmes.service';
 import { FavoritosService } from '../../services/favoritos.service';
 import { ComentariosService, Comentario } from '../../services/comentarios.service';
@@ -17,6 +18,7 @@ export class MovieModalComponent implements OnInit {
   @Output() fechar = new EventEmitter<void>();
   @Output() favoritoAlterado = new EventEmitter<{ id: number; favoritado: boolean }>();
 
+  auth = inject(AuthService);
   private favService = inject(FavoritosService);
   private comService = inject(ComentariosService);
 
@@ -24,7 +26,9 @@ export class MovieModalComponent implements OnInit {
   loadingFav = signal(false);
   comentarios = signal<Comentario[]>([]);
   loadingCom = signal(false);
+  erroComentario = signal('');
   novoComentario = '';
+
 
   ngOnInit() {
     this.isFavoritado.set(this.favoritadoInicial);
@@ -72,6 +76,7 @@ export class MovieModalComponent implements OnInit {
   addComentario() {
     const texto = this.novoComentario.trim();
     if (!texto) return;
+    this.erroComentario.set('');
     this.loadingCom.set(true);
     this.comService.comentar(this.filme.id, texto).subscribe({
       next: (c) => {
@@ -79,13 +84,21 @@ export class MovieModalComponent implements OnInit {
         this.novoComentario = '';
         this.loadingCom.set(false);
       },
-      error: () => this.loadingCom.set(false),
+      error: (err) => {
+        this.loadingCom.set(false);
+        this.erroComentario.set(err?.error?.detail || 'Erro ao publicar comentário.');
+      },
     });
   }
 
   deletarComentario(id: number) {
+    this.erroComentario.set('');
     this.comService.deletar(id).subscribe({
       next: () => this.comentarios.update((cs) => cs.filter((c) => c.id !== id)),
+      error: (err) => {
+        this.erroComentario.set(err?.error?.detail || 'Erro ao excluir comentário.');
+      },
     });
   }
 }
+

@@ -21,6 +21,7 @@ export class LoginComponent {
   email = '';
   senha = '';
   nome = '';
+  role = 'usuario';
   emailRecuperacao = '';
 
   mudarModo(novoModo: 'login' | 'cadastro' | 'esqueci-senha') {
@@ -70,7 +71,7 @@ export class LoginComponent {
     }
 
     this.carregando.set(true);
-    this.auth.cadastrar(nomeTrimmed, emailTrimmed, this.senha).subscribe({
+    this.auth.cadastrar(nomeTrimmed, emailTrimmed, this.senha, this.role).subscribe({
       next: () => {
         this.carregando.set(false);
         this.sucesso.set('Conta criada com sucesso! Entrando...');
@@ -88,6 +89,7 @@ export class LoginComponent {
       },
     });
   }
+
 
   solicitarRecuperacao() {
     this.erro.set('');

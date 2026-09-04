@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { AuthService } from '../../services/auth.service';
 import { ComentariosService, Comentario } from '../../services/comentarios.service';
 import { FilmesService, Filme } from '../../services/filmes.service';
 import { MovieModalComponent } from '../../components/movie-modal/movie-modal.component';
@@ -22,12 +23,15 @@ export interface FilmeComentarios {
   styleUrl: './comentarios.component.css',
 })
 export class ComentariosComponent implements OnInit {
+  auth = inject(AuthService);
   private comentariosService = inject(ComentariosService);
   private filmesService = inject(FilmesService);
 
   grupos = signal<FilmeComentarios[]>([]);
   carregando = signal(true);
   filmeAberto = signal<Filme | null>(null);
+  erro = signal('');
+
 
   totalComentarios = computed(() =>
     this.grupos().reduce((acc, g) => acc + g.comentarios.length, 0)
@@ -98,6 +102,7 @@ export class ComentariosComponent implements OnInit {
   }
 
   deletarComentario(comentarioId: number, movieId: number) {
+    this.erro.set('');
     this.comentariosService.deletar(comentarioId).subscribe({
       next: () => {
         this.grupos.update((gs) =>
@@ -114,8 +119,13 @@ export class ComentariosComponent implements OnInit {
             .filter((g) => g.comentarios.length > 0)
         );
       },
+      error: (err) => {
+        const msg = err?.error?.detail || 'Erro ao remover comentário.';
+        this.erro.set(msg);
+      },
     });
   }
+
 
   adicionarComentario(grupo: FilmeComentarios) {
     const texto = grupo.novoTexto.trim();
