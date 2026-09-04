@@ -7,21 +7,41 @@
 :root {
   --primary: #e50914;
   --primary-dark: #b20710;
-  --bg-dark: #141414;
-  --bg-card: #1f1f1f;
-  --bg-modal: #242424;
-  --text-primary: #ffffff;
-  --text-secondary: #b3b3b3;
-  --border: #333;
+  --bg-dark: #0E120F;
+  --bg: #0E120F;
+  --bg-panel: #171B16;
+  --paper: #EDE6D3;
+  --paper-muted: rgba(237, 230, 211, 0.72);
+  --paper-faint: rgba(237, 230, 211, 0.12);
+  --accent: #B08650;
+  --accent-light: #C89F6B;
+  --accent-glow: rgba(176, 134, 80, 0.25);
+  
+  /* Plan accents */
+  --accent-ilha: #C8965A;
+  --accent-terminal: #8A9199;
+  --accent-orbita: #5C8AA0;
+  --accent-capitao: #C9A227;
+
+  --bg-card: #171B16;
+  --bg-modal: #1D221C;
+  --text-primary: #EDE6D3;
+  --text-secondary: rgba(237, 230, 211, 0.7);
+  --border: rgba(237, 230, 211, 0.12);
+  --border-strong: rgba(237, 230, 211, 0.24);
   --success: #46d369;
+
+  --font-display: 'Bebas Neue', Impact, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
   font-family: var(--font);
-  background: var(--bg-dark);
-  color: var(--text-primary);
+  background: var(--bg);
+  color: var(--paper);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 button {

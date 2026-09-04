@@ -1,9 +1,10 @@
 @if (auth.isLoggedIn()) {
   <nav class="navbar">
-    <div class="navbar-brand">
+    <div class="navbar-brand" routerLink="/" style="cursor: pointer;">
       🎬 Tom Hanks — Catálogo
     </div>
     <div class="navbar-links">
+      <a routerLink="/" [routerLinkActiveOptions]="{exact: true}" routerLinkActive="active">Planos</a>
       <a routerLink="/catalogo" routerLinkActive="active">Catálogo</a>
       <a routerLink="/favoritos" routerLinkActive="active">⭐ Favoritos</a>
       <a routerLink="/comentarios" routerLinkActive="active">💬 Meus Comentários</a>

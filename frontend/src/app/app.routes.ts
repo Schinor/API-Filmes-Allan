@@ -2,7 +2,14 @@ import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: '/catalogo', pathMatch: 'full' },
+  {
+    path: '',
+    loadComponent: () => import('./pages/landing/landing.component').then(m => m.LandingComponent),
+  },
+  {
+    path: 'planos',
+    loadComponent: () => import('./pages/landing/landing.component').then(m => m.LandingComponent),
+  },
   {
     path: 'login',
     canActivate: [guestGuard],
@@ -27,5 +34,5 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./pages/comentarios/comentarios.component').then(m => m.ComentariosComponent),
   },
-  { path: '**', redirectTo: '/catalogo' },
+  { path: '**', redirectTo: '' },
 ];
