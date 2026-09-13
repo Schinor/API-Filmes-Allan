@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, computed_field
 
 
 class PermissaoOut(BaseModel):
@@ -8,7 +8,11 @@ class PermissaoOut(BaseModel):
     action: str
     resource: str
     description: Optional[str] = None
-    slug: str
+
+    @computed_field
+    @property
+    def slug(self) -> str:
+        return f"{self.action}:{self.resource}"
 
     model_config = ConfigDict(from_attributes=True)
 

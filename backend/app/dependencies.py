@@ -35,12 +35,10 @@ async def current_user(authorization: Optional[str] = Header(default=None)) -> d
 def require_permission(permission: str) -> Callable:
     async def dependency(user: dict = Depends(current_user)) -> dict:
         user_permissions = user.get("permissions", [])
-        user_role = user.get("role", "")
-        # Acesso permitido se possuir a permissão requerida, permissão suprema de admin ou role admin
+        # Acesso permitido se possuir a permissão requerida ou a permissão suprema de admin
         if (
             permission not in user_permissions
             and "administrar:sistema" not in user_permissions
-            and user_role != "admin"
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

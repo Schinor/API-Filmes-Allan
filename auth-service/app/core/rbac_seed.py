@@ -101,7 +101,7 @@ PAPEIS_DEFINICAO = [
 ]
 
 LEGACY_ROLE_MAP = {
-    "usuario": "houston-temos-acesso",
+    "usuario": "amigo-do-wilson",
     "admin": "admin",
 }
 

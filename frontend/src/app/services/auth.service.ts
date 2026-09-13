@@ -57,7 +57,6 @@ export class AuthService {
   hasPermission(permission: string): boolean {
     const user = this._user();
     if (!user) return false;
-    if (user.role === 'admin') return true;
     const perms = user.permissions || [];
     return perms.includes(permission) || perms.includes('administrar:sistema');
   }
