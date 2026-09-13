@@ -1,3 +1,4 @@
+from typing import List
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -12,6 +13,10 @@ from app.schemas.usuario import (
     ResetPasswordResponse,
     ValidateTokenResponse,
     UserRoleOut,
+    UserRoleUpdate,
+    PapelOut,
+    PapelCreate,
+    PermissaoOut,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -99,3 +104,60 @@ async def reset_password(payload: ResetPasswordRequest):
 @router.get("/users/{user_id}/role", response_model=UserRoleOut)
 async def get_user_role(user_id: int):
     return await forward_to_auth_service("GET", f"/users/{user_id}/role")
+
+
+@router.get("/users", response_model=List[UsuarioOut])
+async def list_users(request: Request):
+    auth_header = request.headers.get("authorization")
+    return await forward_to_auth_service(
+        "GET",
+        "/users",
+        headers={"authorization": auth_header} if auth_header else None,
+    )
+
+
+@router.put("/users/{user_id}/role", response_model=UsuarioOut)
+async def update_user_role(user_id: int, payload: UserRoleUpdate, request: Request):
+    auth_header = request.headers.get("authorization")
+    return await forward_to_auth_service(
+        "PUT",
+        f"/users/{user_id}/role",
+        json_data=payload.model_dump(),
+        headers={"authorization": auth_header} if auth_header else None,
+    )
+
+
+@router.get("/roles", response_model=List[PapelOut])
+async def list_roles():
+    return await forward_to_auth_service("GET", "/roles")
+
+
+@router.post("/roles", response_model=PapelOut, status_code=status.HTTP_201_CREATED)
+async def create_or_update_role(payload: PapelCreate, request: Request):
+    auth_header = request.headers.get("authorization")
+    return await forward_to_auth_service(
+        "POST",
+        "/roles",
+        json_data=payload.model_dump(),
+        headers={"authorization": auth_header} if auth_header else None,
+    )
+
+
+@router.get("/permissions", response_model=List[PermissaoOut])
+async def list_permissions(request: Request):
+    auth_header = request.headers.get("authorization")
+    return await forward_to_auth_service(
+        "GET",
+        "/permissions",
+        headers={"authorization": auth_header} if auth_header else None,
+    )
+
+
+@router.get("/admin/status")
+async def admin_status(request: Request):
+    auth_header = request.headers.get("authorization")
+    return await forward_to_auth_service(
+        "GET",
+        "/admin/status",
+        headers={"authorization": auth_header} if auth_header else None,
+    )

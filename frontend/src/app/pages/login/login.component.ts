@@ -21,7 +21,7 @@ export class LoginComponent {
   email = '';
   senha = '';
   nome = '';
-  role = 'usuario';
+  role = 'amigo-do-wilson';
   emailRecuperacao = '';
 
   mudarModo(novoModo: 'login' | 'cadastro' | 'esqueci-senha') {
@@ -89,7 +89,6 @@ export class LoginComponent {
       },
     });
   }
-
 
   solicitarRecuperacao() {
     this.erro.set('');

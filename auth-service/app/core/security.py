@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Optional, Callable
 import bcrypt
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
@@ -67,3 +67,15 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session 
     if user is None:
         raise credentials_exception
     return user
+
+
+def require_permission(permission: str) -> Callable:
+    def dependency(current_user=Depends(get_current_user)):
+        user_permissions = current_user.permissions_list
+        if permission not in user_permissions and "administrar:sistema" not in user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acesso negado: permissão '{permission}' necessária",
+            )
+        return current_user
+    return dependency

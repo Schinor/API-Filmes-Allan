@@ -1,5 +1,5 @@
-from typing import Optional
-from dataclasses import dataclass
+from typing import Optional, List
+from dataclasses import dataclass, field
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -13,7 +13,8 @@ class CurrentUser:
     id: int
     nome: str = ""
     email: str = ""
-    role: str = "usuario"
+    role: str = "amigo-do-wilson"
+    permissions: List[str] = field(default_factory=list)
 
 
 def decode_token(token: str) -> dict:
@@ -48,5 +49,6 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> Cur
         id=int(user_id),
         nome=payload.get("nome", ""),
         email=payload.get("email", ""),
-        role=payload.get("role", "usuario"),
+        role=payload.get("role", "amigo-do-wilson"),
+        permissions=payload.get("permissions", []),
     )

@@ -1,14 +1,15 @@
 import { Component, Input, Output, EventEmitter, OnInit, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SlicePipe } from '@angular/common';
+import { CommonModule, SlicePipe } from '@angular/common';
 import { AuthService } from '../../services/auth.service';
 import { Filme } from '../../services/filmes.service';
 import { FavoritosService } from '../../services/favoritos.service';
 import { ComentariosService, Comentario } from '../../services/comentarios.service';
+import { HasPermissionDirective } from '../../directives/has-permission.directive';
 
 @Component({
   selector: 'app-movie-modal',
-  imports: [FormsModule, SlicePipe],
+  imports: [CommonModule, FormsModule, SlicePipe],
   templateUrl: './movie-modal.component.html',
   styleUrl: './movie-modal.component.css',
 })
@@ -29,7 +30,6 @@ export class MovieModalComponent implements OnInit {
   erroComentario = signal('');
   novoComentario = '';
 
-
   ngOnInit() {
     this.isFavoritado.set(this.favoritadoInicial);
     this.carregarComentarios();
@@ -47,6 +47,11 @@ export class MovieModalComponent implements OnInit {
   }
 
   toggleFavorito() {
+    if (!this.auth.hasPermission('adicionar:favoritos')) {
+      this.erroComentario.set('Seu plano atual não permite favoritar filmes. Faça upgrade para o plano Preso no Terminal ou superior.');
+      return;
+    }
+
     this.loadingFav.set(true);
     if (this.isFavoritado()) {
       this.favService.desfavoritar(this.filme.id).subscribe({
@@ -76,6 +81,12 @@ export class MovieModalComponent implements OnInit {
   addComentario() {
     const texto = this.novoComentario.trim();
     if (!texto) return;
+
+    if (!this.auth.hasPermission('criar:comentarios')) {
+      this.erroComentario.set('Seu plano não possui permissão para comentar. Faça upgrade para o plano Houston, Temos Acesso ou superior.');
+      return;
+    }
+
     this.erroComentario.set('');
     this.loadingCom.set(true);
     this.comService.comentar(this.filme.id, texto).subscribe({
@@ -101,4 +112,3 @@ export class MovieModalComponent implements OnInit {
     });
   }
 }
-

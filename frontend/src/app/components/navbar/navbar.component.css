@@ -51,15 +51,44 @@
   font-size: 0.9rem;
 }
 
+.user-role-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+}
+
 .badge-admin {
   background: #e50914;
   color: #fff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border: 1px solid #ff4d4d;
+}
+
+.badge-capitao {
+  background: #c9a227;
+  color: #111;
+  border: 1px solid #ffe285;
+}
+
+.badge-houston {
+  background: #3b82f6;
+  color: #fff;
+  border: 1px solid #60a5fa;
+}
+
+.badge-terminal {
+  background: #8b5cf6;
+  color: #fff;
+  border: 1px solid #a78bfa;
+}
+
+.badge-wilson {
+  background: #4b5563;
+  color: #f3f4f6;
+  border: 1px solid #6b7280;
 }
 
 .btn-logout {

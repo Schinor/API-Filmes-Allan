@@ -6,15 +6,13 @@
     <div class="navbar-links">
       <a routerLink="/" [routerLinkActiveOptions]="{exact: true}" routerLinkActive="active">Planos</a>
       <a routerLink="/catalogo" routerLinkActive="active">Catálogo</a>
-      <a routerLink="/favoritos" routerLinkActive="active">⭐ Favoritos</a>
-      <a routerLink="/comentarios" routerLinkActive="active">💬 Meus Comentários</a>
+      <a *hasPermission="'listar:favoritos'" routerLink="/favoritos" routerLinkActive="active">⭐ Favoritos</a>
+      <a *hasPermission="'listar:comentarios'" routerLink="/comentarios" routerLinkActive="active">💬 Meus Comentários</a>
     </div>
     <div class="navbar-user">
       <div class="user-badge-container">
         <span class="user-name">{{ auth.user()?.nome }}</span>
-        @if (auth.user()?.role === 'admin') {
-          <span class="badge-admin">Admin</span>
-        }
+        <span class="user-role-badge" [ngClass]="roleBadge.class">{{ roleBadge.name }}</span>
       </div>
       <button class="btn-logout" (click)="logout()">Sair</button>
     </div>

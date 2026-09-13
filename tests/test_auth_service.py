@@ -11,7 +11,7 @@ os.environ["RESET_TOKEN_EXPIRE_MINUTES"] = "30"
 # Adiciona caminhos
 sys.path.insert(0, os.path.abspath("auth-service"))
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -21,6 +21,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.models.usuario import Usuario
 from app.models.reset_token import ResetToken
+from app.core.rbac_seed import seed_rbac
 from app.main import app
 
 # Banco de dados em memória exclusivo para a suite de testes automatizados
@@ -50,6 +51,9 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine_test)
+    db = TestingSessionLocal()
+    seed_rbac(db)
+    db.close()
     yield
     Base.metadata.drop_all(bind=engine_test)
 
@@ -72,7 +76,8 @@ def test_cadastro_e_login_usuario():
     cad_data = cad_resp.json()
     assert cad_data["nome"] == "Allan Schinor"
     assert cad_data["email"] == "allan@exemplo.com"
-    assert cad_data["role"] == "usuario"
+    assert cad_data["role"] == "amigo-do-wilson"
+    assert "assistir:catalogo" in cad_data["permissions"]
     user_id = cad_data["id"]
 
     # Cadastro duplicado deve falhar
@@ -97,25 +102,64 @@ def test_cadastro_e_login_usuario():
     me_resp = client.get("/me", headers={"Authorization": f"Bearer {token}"})
     assert me_resp.status_code == 200
     assert me_resp.json()["email"] == "allan@exemplo.com"
+    assert "assistir:catalogo" in me_resp.json()["permissions"]
 
     # 4. /users/{id}/role
     role_resp = client.get(f"/users/{user_id}/role")
     assert role_resp.status_code == 200
-    assert role_resp.json()["role"] == "usuario"
+    assert role_resp.json()["role"] == "amigo-do-wilson"
 
 
-def test_roles_usuario_e_admin():
-    # Cadastro de admin
+def test_roles_e_matriz_permissoes():
+    # Cria usuários com cada um dos 5 papéis
+    papeis = [
+        ("wilson@exemplo.com", "amigo-do-wilson", "assistir:catalogo", "listar:favoritos"),
+        ("terminal@exemplo.com", "preso-no-terminal", "listar:favoritos", "criar:comentarios"),
+        ("houston@exemplo.com", "houston-temos-acesso", "criar:comentarios", "assistir:catalogo-premium"),
+        ("capitao@exemplo.com", "capitao-hanks", "assistir:catalogo-premium", "administrar:sistema"),
+        ("admin@exemplo.com", "admin", "administrar:sistema", None),
+    ]
+
+    for email, role_slug, perm_esperada, perm_nao_esperada in papeis:
+        resp = client.post(
+            "/cadastro",
+            json={"nome": f"User {role_slug}", "email": email, "senha": "password123", "role": role_slug},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["role"] == role_slug
+        assert perm_esperada in data["permissions"]
+        if perm_nao_esperada:
+            assert perm_nao_esperada not in data["permissions"]
+
+
+def test_permissao_exclusiva_admin():
+    # 1. Usuário comum tentando acessar endpoint de admin status -> 403
+    user_resp = client.post(
+        "/cadastro",
+        json={"nome": "Comum", "email": "comum@exemplo.com", "senha": "password123", "role": "capitao-hanks"},
+    )
+    user_token = client.post(
+        "/login",
+        data={"username": "comum@exemplo.com", "password": "password123"},
+    ).json()["access_token"]
+
+    denied = client.get("/admin/status", headers={"Authorization": f"Bearer {user_token}"})
+    assert denied.status_code == 403
+
+    # 2. Admin acessando endpoint exclusivo -> 200
     admin_resp = client.post(
         "/cadastro",
-        json={"nome": "Siriani Admin", "email": "siriani@exemplo.com", "senha": "adminSecret123", "role": "admin"},
+        json={"nome": "Siriani Admin", "email": "admin@exemplo.com", "senha": "adminSecret123", "role": "admin"},
     )
-    assert admin_resp.status_code == 201
-    admin_id = admin_resp.json()["id"]
+    admin_token = client.post(
+        "/login",
+        data={"username": "admin@exemplo.com", "password": "adminSecret123"},
+    ).json()["access_token"]
 
-    role_resp = client.get(f"/users/{admin_id}/role")
-    assert role_resp.status_code == 200
-    assert role_resp.json()["role"] == "admin"
+    allowed = client.get("/admin/status", headers={"Authorization": f"Bearer {admin_token}"})
+    assert allowed.status_code == 200
+    assert allowed.json()["admin_access"] is True
 
 
 def test_fluxo_completo_esqueci_senha_e_redefinicao():
@@ -165,7 +209,6 @@ def test_fluxo_completo_esqueci_senha_e_redefinicao():
 
 
 def test_negativo_reuso_de_token():
-    # Cria usuário e token
     client.post(
         "/cadastro",
         json={"nome": "Reuso Teste", "email": "reuso@exemplo.com", "senha": "senhaOriginal123"},
@@ -173,11 +216,9 @@ def test_negativo_reuso_de_token():
     forgot_resp = client.post("/forgot-password", json={"email": "reuso@exemplo.com"})
     token = forgot_resp.json()["token"]
 
-    # Primeiro uso: OK
     r1 = client.post("/reset-password", json={"token": token, "nova_senha": "novaSenha123"})
     assert r1.status_code == 200
 
-    # Segundo uso (tentativa de reuso): DEVE SER RECUSADO
     r2 = client.post("/reset-password", json={"token": token, "nova_senha": "outraSenha123"})
     assert r2.status_code == 400
     assert "já foi utilizado" in r2.json()["detail"].lower()
@@ -185,31 +226,27 @@ def test_negativo_reuso_de_token():
 
 def test_negativo_token_expirado():
     db = TestingSessionLocal()
-    # Cria usuário
     cad_resp = client.post(
         "/cadastro",
         json={"nome": "Expirado Teste", "email": "expirado@exemplo.com", "senha": "senhaOriginal123"},
     )
     user_id = cad_resp.json()["id"]
 
-    # Cria token diretamente no DB com data de expiração no passado (mais de 30 minutos atrás)
     token_expirado_str = "token_expirado_de_teste_12345"
     db_token = ResetToken(
         token=token_expirado_str,
         usuario_id=user_id,
-        criado_em=datetime.utcnow() - timedelta(minutes=45),
-        expira_em=datetime.utcnow() - timedelta(minutes=15),
+        criado_em=datetime.now(timezone.utc) - timedelta(minutes=45),
+        expira_em=datetime.now(timezone.utc) - timedelta(minutes=15),
         usado=False,
     )
     db.add(db_token)
     db.commit()
     db.close()
 
-    # Tentativa de validar token expirado
     val_resp = client.get(f"/validate-reset-token/{token_expirado_str}")
     assert val_resp.json()["valid"] is False
 
-    # Tentativa de trocar senha com token expirado: DEVE SER RECUSADA
     reset_resp = client.post(
         "/reset-password",
         json={"token": token_expirado_str, "nova_senha": "novaSenhaExpirada123"},

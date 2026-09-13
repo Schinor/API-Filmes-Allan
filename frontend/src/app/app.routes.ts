@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './guards/auth.guard';
+import { permissionGuard } from './guards/permission.guard';
 
 export const routes: Routes = [
   {
@@ -26,12 +27,12 @@ export const routes: Routes = [
   },
   {
     path: 'favoritos',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('listar:favoritos')],
     loadComponent: () => import('./pages/favoritos/favoritos.component').then(m => m.FavoritosComponent),
   },
   {
     path: 'comentarios',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('listar:comentarios')],
     loadComponent: () => import('./pages/comentarios/comentarios.component').then(m => m.ComentariosComponent),
   },
   { path: '**', redirectTo: '' },

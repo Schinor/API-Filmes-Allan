@@ -6,8 +6,6 @@
         Filmes que você comentou no catálogo
         @if (auth.isAdmin()) {
           <span class="badge-role-admin">🛡️ Modo Administrador (Moderação ativa)</span>
-        } @else {
-          <span class="badge-role-user">👤 Papel: Usuário</span>
         }
       </p>
     </div>
@@ -19,7 +17,6 @@
       ⚠️ {{ erro() }}
     </div>
   }
-
 
   @if (carregando()) {
     <div class="loading">
@@ -73,14 +70,16 @@
                     <p class="comment-text">{{ c.texto }}</p>
                     <div class="comment-meta">
                       <span class="comment-date">{{ c.criado_em | date:'dd/MM/yyyy HH:mm' }}</span>
-                      <button
-                        type="button"
-                        class="btn-delete"
-                        (click)="deletarComentario(c.id, grupo.filme.id)"
-                        title="Excluir comentário"
-                      >
-                        🗑️ Excluir
-                      </button>
+                      @if (auth.hasPermission('apagar:comentario-proprio') || auth.hasPermission('apagar:comentario-de-outro')) {
+                        <button
+                          type="button"
+                          class="btn-delete"
+                          (click)="deletarComentario(c.id, grupo.filme.id)"
+                          title="Excluir comentário"
+                        >
+                          🗑️ Excluir
+                        </button>
+                      }
                     </div>
                   </div>
                 </div>
@@ -88,23 +87,25 @@
             </div>
 
             <!-- Adicionar novo comentário rápido -->
-            <div class="add-comment-form">
-              <input
-                type="text"
-                [(ngModel)]="grupo.novoTexto"
-                placeholder="Escrever outro comentário para este filme..."
-                (keyup.enter)="adicionarComentario(grupo)"
-                [disabled]="grupo.adicionando"
-              />
-              <button
-                type="button"
-                class="btn-send"
-                (click)="adicionarComentario(grupo)"
-                [disabled]="grupo.adicionando || !grupo.novoTexto.trim()"
-              >
-                {{ grupo.adicionando ? 'Enviando...' : 'Comentar' }}
-              </button>
-            </div>
+            @if (auth.hasPermission('criar:comentarios')) {
+              <div class="add-comment-form">
+                <input
+                  type="text"
+                  [(ngModel)]="grupo.novoTexto"
+                  placeholder="Escrever outro comentário para este filme..."
+                  (keyup.enter)="adicionarComentario(grupo)"
+                  [disabled]="grupo.adicionando"
+                />
+                <button
+                  type="button"
+                  class="btn-send"
+                  (click)="adicionarComentario(grupo)"
+                  [disabled]="grupo.adicionando || !grupo.novoTexto.trim()"
+                >
+                  {{ grupo.adicionando ? 'Enviando...' : 'Comentar' }}
+                </button>
+              </div>
+            }
           </div>
         </div>
       }

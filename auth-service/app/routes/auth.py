@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -29,7 +29,7 @@ def cadastro(payload: UsuarioCreate, db: Session = Depends(get_db)):
         nome=payload.nome,
         email=payload.email,
         senha=payload.senha,
-        role=payload.role or "usuario",
+        role=payload.role or "amigo-do-wilson",
     )
 
 
@@ -47,6 +47,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             "email": usuario.email,
             "nome": usuario.nome,
             "role": usuario.role,
+            "permissions": usuario.permissions,
         }
     )
     return {
@@ -91,7 +92,12 @@ def validate_reset_token(token: str, db: Session = Depends(get_db)):
     if not reset_token:
         return {"valid": False, "message": "Token de recuperação inválido ou não encontrado."}
 
-    if datetime.utcnow() >= reset_token.expira_em:
+    now_utc = datetime.now(timezone.utc)
+    expira_em = reset_token.expira_em
+    if expira_em.tzinfo is None:
+        expira_em = expira_em.replace(tzinfo=timezone.utc)
+
+    if now_utc >= expira_em:
         return {"valid": False, "message": "Link de recuperação expirado (limite de 30 minutos excedido)."}
 
     if reset_token.usado:
@@ -107,7 +113,6 @@ def validate_reset_token(token: str, db: Session = Depends(get_db)):
 
 @router.post("/reset-password", response_model=ResetPasswordResponse)
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    # 1. Checa se o token existe
     reset_token = reset_token_repo.get_by_token(db, payload.token)
     if not reset_token:
         raise HTTPException(
@@ -115,14 +120,17 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
             detail="Token de recuperação inválido ou inexistente.",
         )
 
-    # 2. Checa se agora < expira_em
-    if datetime.utcnow() >= reset_token.expira_em:
+    now_utc = datetime.now(timezone.utc)
+    expira_em = reset_token.expira_em
+    if expira_em.tzinfo is None:
+        expira_em = expira_em.replace(tzinfo=timezone.utc)
+
+    if now_utc >= expira_em:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O link de recuperação expirou (validade de 30 minutos). Solicite uma nova recuperação.",
         )
 
-    # 3. Checa se usado = false
     if reset_token.usado:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -142,10 +150,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
             detail="Usuário associado ao token não encontrado.",
         )
 
-    # Troca a senha
     usuario_repo.update_password(db, usuario, payload.nova_senha)
-
-    # Marca token como utilizado para evitar reuso
     reset_token_repo.mark_as_used(db, reset_token)
 
     return {"message": "Senha redefinida com sucesso! Você já pode fazer login com a nova senha."}

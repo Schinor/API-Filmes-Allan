@@ -133,8 +133,11 @@
             [disabled]="carregando()"
             class="role-select"
           >
-            <option value="usuario">👤 Usuário Comum (padrão)</option>
-            <option value="admin">🛡️ Administrador (moderação de comentários)</option>
+            <option value="amigo-do-wilson">🏝️ Amigo do Wilson (Náufrago) — Básico</option>
+            <option value="preso-no-terminal">🧳 Preso no Terminal (O Terminal) — Intermediário</option>
+            <option value="houston-temos-acesso">🚀 Houston, Temos Acesso (Apollo 13) — Avançado</option>
+            <option value="capitao-hanks">⚓ Capitão Hanks (Capitão Phillips) — Supremo</option>
+            <option value="admin">🛡️ Administrador — Gestão Total & Moderação</option>
           </select>
         </div>
         <button
@@ -144,7 +147,6 @@
         >
           {{ carregando() ? 'Cadastrando...' : 'Criar conta' }}
         </button>
-
       </form>
     }
 

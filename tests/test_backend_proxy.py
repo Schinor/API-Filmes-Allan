@@ -26,6 +26,7 @@ def setup_catalogo_app():
     from app.core.database import Base, get_db
     from app.dependencies import current_user
     from app.models.comentario import Comentario
+    from app.models.favoritos import Favorito
 
     engine_test = create_engine(
         "sqlite:///:memory:",
@@ -53,7 +54,8 @@ def test_catalogo_app_structure():
         "id": 1,
         "nome": "Allan Teste",
         "email": "allan@teste.com",
-        "role": "usuario",
+        "role": "houston-temos-acesso",
+        "permissions": ["assistir:catalogo", "listar:favoritos", "listar:comentarios"],
     }
 
     client = TestClient(app)
@@ -70,16 +72,67 @@ def test_catalogo_app_structure():
     assert isinstance(com_list.json(), list)
 
 
+def test_rbac_permissoes_amigo_do_wilson_e_terminal():
+    app, TestingSessionLocal, current_user, TestClient = setup_catalogo_app()
+    client = TestClient(app)
+
+    # 1. Amigo do Wilson tenta favoritar filme -> 403 Forbidden
+    app.dependency_overrides[current_user] = lambda: {
+        "id": 10,
+        "nome": "Wilson User",
+        "email": "wilson@teste.com",
+        "role": "amigo-do-wilson",
+        "permissions": ["assistir:catalogo", "detalhes:filmes", "listar:comentarios"],
+    }
+
+    fav_resp = client.post(
+        "/api/favoritos",
+        json={"tmdb_movie_id": 550, "titulo": "Fight Club", "poster_path": "/path.jpg"},
+    )
+    assert fav_resp.status_code == 403
+    assert "adicionar:favoritos" in fav_resp.json()["detail"]
+
+    # 2. Preso no Terminal pode favoritar, mas não pode comentar -> 403 Forbidden
+    app.dependency_overrides[current_user] = lambda: {
+        "id": 20,
+        "nome": "Terminal User",
+        "email": "terminal@teste.com",
+        "role": "preso-no-terminal",
+        "permissions": [
+            "assistir:catalogo",
+            "detalhes:filmes",
+            "listar:comentarios",
+            "listar:favoritos",
+            "adicionar:favoritos",
+            "remover:favoritos",
+        ],
+    }
+
+    fav_ok = client.post(
+        "/api/favoritos",
+        json={"tmdb_movie_id": 550, "titulo": "Fight Club", "poster_path": "/path.jpg"},
+    )
+    assert fav_ok.status_code == 201
+
+    com_resp = client.post(
+        "/api/comentarios",
+        json={"tmdb_movie_id": 550, "texto": "Tentativa de comentário no Terminal"},
+    )
+    assert com_resp.status_code == 403
+    assert "criar:comentarios" in com_resp.json()["detail"]
+
+
 def test_rbac_comentarios_dono_outro_usuario_e_admin():
     app, TestingSessionLocal, current_user, TestClient = setup_catalogo_app()
     client = TestClient(app)
 
-    # 1. Usuário 1 logado cria um comentário
+    # 1. Usuário 1 (Houston) cria um comentário
     app.dependency_overrides[current_user] = lambda: {
         "id": 1,
         "nome": "Usuario Um",
         "email": "user1@teste.com",
-        "role": "usuario",
+        "role": "houston-temos-acesso",
+        "permissions": ["criar:comentarios", "apagar:comentario-proprio", "listar:comentarios"],
     }
 
     create_resp = client.post(
@@ -89,12 +142,13 @@ def test_rbac_comentarios_dono_outro_usuario_e_admin():
     assert create_resp.status_code == 201
     comentario_id = create_resp.json()["id"]
 
-    # 2. Usuário 2 (role: 'usuario') tenta deletar comentário do Usuário 1 -> 403 Forbidden
+    # 2. Usuário 2 (Houston) tenta deletar comentário do Usuário 1 -> 403 Forbidden
     app.dependency_overrides[current_user] = lambda: {
         "id": 2,
         "nome": "Usuario Dois",
         "email": "user2@teste.com",
-        "role": "usuario",
+        "role": "houston-temos-acesso",
+        "permissions": ["criar:comentarios", "apagar:comentario-proprio", "listar:comentarios"],
     }
 
     del_user2_resp = client.delete(f"/api/comentarios/{comentario_id}")
@@ -104,12 +158,13 @@ def test_rbac_comentarios_dono_outro_usuario_e_admin():
         == "Apenas o autor ou um administrador podem remover este comentário"
     )
 
-    # 3. Usuário 3 (role: 'admin') deleta comentário do Usuário 1 -> 200 OK
+    # 3. Usuário 3 (Admin) deleta comentário do Usuário 1 -> 200 OK
     app.dependency_overrides[current_user] = lambda: {
         "id": 99,
         "nome": "Admin Geral",
         "email": "admin@teste.com",
         "role": "admin",
+        "permissions": ["apagar:comentario-de-outro", "administrar:sistema"],
     }
 
     del_admin_resp = client.delete(f"/api/comentarios/{comentario_id}")
@@ -121,7 +176,8 @@ def test_rbac_comentarios_dono_outro_usuario_e_admin():
         "id": 1,
         "nome": "Usuario Um",
         "email": "user1@teste.com",
-        "role": "usuario",
+        "role": "houston-temos-acesso",
+        "permissions": ["criar:comentarios", "apagar:comentario-proprio", "listar:comentarios"],
     }
     create_resp2 = client.post(
         "/api/comentarios",

@@ -7,6 +7,8 @@ export interface Usuario {
   nome: string;
   email: string;
   role?: string;
+  role_id?: number;
+  permissions?: string[];
 }
 
 export interface Token {
@@ -43,7 +45,8 @@ export class AuthService {
   readonly token = this._token.asReadonly();
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => !!this._token());
-  readonly isAdmin = computed(() => this._user()?.role === 'admin');
+  readonly isAdmin = computed(() => this._user()?.role === 'admin' || this.hasPermission('administrar:sistema'));
+  readonly permissions = computed(() => this._user()?.permissions || []);
 
   constructor(private http: HttpClient) {
     if (this._token()) {
@@ -51,7 +54,19 @@ export class AuthService {
     }
   }
 
-  cadastrar(nome: string, email: string, senha: string, role: string = 'usuario'): Observable<Usuario> {
+  hasPermission(permission: string): boolean {
+    const user = this._user();
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const perms = user.permissions || [];
+    return perms.includes(permission) || perms.includes('administrar:sistema');
+  }
+
+  hasAnyPermission(permissions: string[]): boolean {
+    return permissions.some((p) => this.hasPermission(p));
+  }
+
+  cadastrar(nome: string, email: string, senha: string, role: string = 'amigo-do-wilson'): Observable<Usuario> {
     return this.http.post<Usuario>('/api/auth/cadastro', {
       nome: nome.trim(),
       email: email.trim(),
