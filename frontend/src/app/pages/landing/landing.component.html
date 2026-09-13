@@ -1,361 +1,39 @@
-<div class="landing-page">
-  <!-- ATMOSPHERIC TOP NAVIGATION -->
-  <header class="landing-nav">
-    <div class="nav-container">
-      <div class="nav-brand" routerLink="/">
+<div class="plans-page">
+
+  <!-- HEADER MÍNIMO -->
+  <header class="plans-header">
+    <div class="plans-header-inner">
+      <div class="plans-brand" routerLink="/">
         <span class="brand-badge">ROTA DE FUGA</span>
         <span class="brand-sub">CATÁLOGO TOM HANKS</span>
       </div>
-
-      <nav class="nav-links">
-        <a (click)="scrollToPlans()" class="nav-item">Planos de Fuga</a>
-        <a href="#destaque" class="nav-item">Destaque</a>
-        <a href="#bastidores" class="nav-item">Bastidores</a>
-        <a href="#ficha-tecnica" class="nav-item">Ficha Técnica</a>
-      </nav>
-
-      <div class="nav-actions">
+      <div class="plans-header-actions">
         @if (auth.isLoggedIn()) {
-          <a routerLink="/catalogo" class="btn-nav-primary">Acessar Catálogo »</a>
+          <a routerLink="/catalogo" class="btn-back">← Voltar ao Catálogo</a>
         } @else {
-          <a routerLink="/login" class="nav-login-link">Entrar</a>
-          <button (click)="scrollToPlans()" class="btn-nav-primary">Pedir Resgate »</button>
+          <a routerLink="/login" class="btn-back">Já tenho conta →</a>
         }
       </div>
     </div>
   </header>
 
-  <!-- HERO SECTION WITH DIAGONAL CUT -->
-  <section class="hero-section">
-    <div class="hero-backdrop"></div>
-    <div class="hero-container">
-      <!-- HERO CONTENT (LEFT) -->
-      <div class="hero-content">
-        <div class="kicker-tag">
-          <span class="kicker-dot"></span>
-          <span>CURADORIA CINEMATOGRÁFICA · EDIÇÃO EXCLUSIVA</span>
-        </div>
-
-        <h1 class="hero-title">
-          QUATRO FILMES.<br>
-          QUATRO <span class="accent-text">NÍVEIS DE FUGA.</span>
-        </h1>
-
-        <p class="hero-copy">
-          Da solidão implacável de uma ilha inóspita aos confins silenciosos da órbita lunar. 
-          Uma imersão definitiva na cinematografia de <em>Tom Hanks</em> — com masterização em 4K HDR, 
-          roteiros originais anotados e materiais confidenciais de bastidores.
-        </p>
-
-        <div class="hero-cta-group">
-          <button class="btn-hero-primary" (click)="scrollToPlans()">
-            <span>Ver Planos de Fuga</span>
-            <span class="cta-arrow">»</span>
-          </button>
-          
-          @if (auth.isLoggedIn()) {
-            <a routerLink="/catalogo" class="btn-hero-secondary">
-              Explorar Catálogo
-            </a>
-          } @else {
-            <a routerLink="/login" class="btn-hero-secondary">
-              Explorar Catálogo
-            </a>
-          }
-        </div>
-
-        <div class="hero-footnote">
-          <span class="seal-mini">★</span>
-          <span>Passe de acesso irrestrito · Sem contratos de permanência · Cancele quando desejar</span>
-        </div>
-      </div>
-
-      <!-- HERO VISUAL WITH DIAGONAL MASK & SCENE SVG (RIGHT) -->
-      <div class="hero-scene-wrapper">
-        <div class="diagonal-mask"></div>
-        <div class="scene-canvas">
-          <svg viewBox="0 0 700 650" class="hero-svg" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="grad-sky" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#1A221C" stop-opacity="0.95" />
-                <stop offset="60%" stop-color="#0E120F" stop-opacity="0.9" />
-                <stop offset="100%" stop-color="#080A08" stop-opacity="1" />
-              </linearGradient>
-
-              <linearGradient id="grad-accent-gold" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#C9A227" />
-                <stop offset="50%" stop-color="#EDE6D3" />
-                <stop offset="100%" stop-color="#B08650" />
-              </linearGradient>
-
-              <linearGradient id="grad-island" x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#C8965A" stop-opacity="0.8" />
-                <stop offset="100%" stop-color="#5C8AA0" stop-opacity="0.2" />
-              </linearGradient>
-
-              <radialGradient id="beacon-glow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#C9A227" stop-opacity="0.6" />
-                <stop offset="50%" stop-color="#B08650" stop-opacity="0.2" />
-                <stop offset="100%" stop-color="#0E120F" stop-opacity="0" />
-              </radialGradient>
-            </defs>
-
-            <!-- Grid & Celestial Coordinate System -->
-            <g opacity="0.18" stroke="#EDE6D3" stroke-width="0.75">
-              <line x1="50" y1="50" x2="650" y2="50" stroke-dasharray="4 8" />
-              <line x1="50" y1="150" x2="650" y2="150" stroke-dasharray="4 8" />
-              <line x1="50" y1="250" x2="650" y2="250" stroke-dasharray="4 8" />
-              <line x1="50" y1="350" x2="650" y2="350" stroke-dasharray="4 8" />
-              <line x1="50" y1="450" x2="650" y2="450" stroke-dasharray="4 8" />
-              <line x1="50" y1="550" x2="650" y2="550" stroke-dasharray="4 8" />
-              
-              <line x1="120" y1="50" x2="120" y2="600" stroke-dasharray="2 6" />
-              <line x1="280" y1="50" x2="280" y2="600" stroke-dasharray="2 6" />
-              <line x1="440" y1="50" x2="440" y2="600" stroke-dasharray="2 6" />
-              <line x1="600" y1="50" x2="600" y2="600" stroke-dasharray="2 6" />
-            </g>
-
-            <!-- Compass Rings / Radar Sweep Motif -->
-            <g transform="translate(480, 260)">
-              <circle r="190" fill="none" stroke="#5C8AA0" stroke-opacity="0.12" stroke-width="1.5" />
-              <circle r="140" fill="none" stroke="#B08650" stroke-opacity="0.2" stroke-dasharray="6 10" stroke-width="1.2" />
-              <circle r="80" fill="none" stroke="#EDE6D3" stroke-opacity="0.15" stroke-width="1" />
-              <circle r="220" fill="url(#beacon-glow)" />
-              
-              <!-- Orbital Trajectory Line (Apollo 13 Arc) -->
-              <path d="M -300 220 Q -80 -180 180 -90 T 260 140" fill="none" stroke="#5C8AA0" stroke-width="2.5" stroke-linecap="round" opacity="0.85" />
-              <!-- Capsule Indicator Point -->
-              <circle cx="180" cy="-90" r="4.5" fill="#EDE6D3" />
-              <circle cx="180" cy="-90" r="10" fill="none" stroke="#5C8AA0" stroke-width="1" opacity="0.8" />
-              <text x="195" y="-95" fill="#5C8AA0" font-family="'Bebas Neue', sans-serif" font-size="14" letter-spacing="2">APOLLO XIII // TRAJETÓRIA ÓRBITA</text>
-            </g>
-
-            <!-- Cast Away Island Silhouette Motif -->
-            <g transform="translate(80, 360)">
-              <!-- Island Mound -->
-              <path d="M 40 180 Q 150 70 290 140 Q 360 170 450 190 Z" fill="#171B16" stroke="#C8965A" stroke-width="1.5" opacity="0.9" />
-              <!-- Lone Palm Tree -->
-              <path d="M 170 110 Q 165 40 210 10 Q 195 25 185 110" fill="#C8965A" opacity="0.75" />
-              <path d="M 210 10 Q 235 0 260 20 Q 240 18 210 10" fill="#C8965A" opacity="0.7" />
-              <path d="M 210 10 Q 220 -20 205 -35 Q 200 -10 210 10" fill="#C8965A" opacity="0.8" />
-              <path d="M 210 10 Q 180 -15 160 5 Q 185 10 210 10" fill="#C8965A" opacity="0.7" />
-              <!-- Rescue Beacon Light -->
-              <circle cx="280" cy="130" r="3.5" fill="#C9A227" />
-              <line x1="280" y1="130" x2="280" y2="80" stroke="#C9A227" stroke-dasharray="2 3" stroke-width="1" opacity="0.8" />
-              <text x="292" y="134" fill="#C8965A" font-family="'Bebas Neue', sans-serif" font-size="13" letter-spacing="1.5">SINAL DE RESGATE // CAST AWAY</text>
-            </g>
-
-            <!-- Airport Terminal Departure Vector -->
-            <g transform="translate(180, 200)" opacity="0.75">
-              <line x1="0" y1="0" x2="220" y2="0" stroke="#8A9199" stroke-width="1" stroke-dasharray="3 6" />
-              <polygon points="220,0 210,-4 210,4" fill="#8A9199" />
-              <text x="5" y="-10" fill="#8A9199" font-family="'Bebas Neue', sans-serif" font-size="12" letter-spacing="2">TERMINAL DE EMBARQUE GATE 67</text>
-            </g>
-
-            <!-- Nautical Compass Rose (Captain Phillips / Resgate) -->
-            <g transform="translate(540, 480)">
-              <polygon points="0,-45 8,-8 45,0 8,8 0,45 -8,8 -45,0 -8,-8" fill="#C9A227" opacity="0.6" />
-              <circle cx="0" cy="0" r="5" fill="#EDE6D3" />
-              <text x="-40" y="65" fill="#C9A227" font-family="'Bebas Neue', sans-serif" font-size="12" letter-spacing="2">COMANDO CAPITÃO</text>
-            </g>
-
-            <!-- Film Strip Perforations Along Right Edge -->
-            <g transform="translate(660, 20)" opacity="0.25">
-              <rect x="0" y="0" width="24" height="600" fill="#171B16" stroke="#EDE6D3" stroke-width="1" />
-              <rect x="4" y="20" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="70" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="120" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="170" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="220" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="270" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="320" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="370" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="420" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="470" width="16" height="24" rx="2" fill="#EDE6D3" />
-              <rect x="4" y="520" width="16" height="24" rx="2" fill="#EDE6D3" />
-            </g>
-          </svg>
-        </div>
-      </div>
+  <!-- INTRO -->
+  <section class="plans-intro">
+    <div class="kicker-tag justify-center">
+      <span class="kicker-dot"></span>
+      <span>QUADRO DE SALVO-CONDUTO</span>
     </div>
+    <h1 class="plans-title">ESCOLHA SEU PAPEL NA FUGA</h1>
+    <p class="plans-subtitle">
+      Cada plano confere uma credencial única de acesso ao universo e aos arquivos de Tom Hanks.
+    </p>
   </section>
 
-  <!-- FAIXA DE FICHA TÉCNICA (THIN MOVIE INFO BAR) -->
-  <section class="ficha-tecnica-bar" id="ficha-tecnica">
-    <div class="ficha-container">
-      <div class="ficha-item">
-        <span class="ficha-label">FORMATO:</span>
-        <span class="ficha-val">4K HDR MASTER & ARQUIVO FÍSICO</span>
-      </div>
-      <span class="ficha-divider">✦</span>
-      <div class="ficha-item">
-        <span class="ficha-label">CURADORIA:</span>
-        <span class="ficha-val">RESTAURAÇÕES CRÍTICAS DIRETAS</span>
-      </div>
-      <span class="ficha-divider">✦</span>
-      <div class="ficha-item">
-        <span class="ficha-label">AVALIAÇÃO:</span>
-        <span class="ficha-val">★★★★★ 4.9/5 CRÍTICA & PÚBLICO</span>
-      </div>
-      <span class="ficha-divider">✦</span>
-      <div class="ficha-item">
-        <span class="ficha-label">PROTAGONISTA:</span>
-        <span class="ficha-val">TOM HANKS</span>
-      </div>
-      <span class="ficha-divider">✦</span>
-      <div class="ficha-item">
-        <span class="ficha-label">ACESSO:</span>
-        <span class="ficha-val">ROTA DE FUGA AUTORIZADA</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- SEÇÃO DESTAQUE ASSIMÉTRICO (3D PASS SHOWCASE & SELOS DE PRESTÍGIO) -->
-  <section class="destaque-section" id="destaque">
-    <div class="destaque-container">
-      <!-- LEFT: 3D INTERACTIVE PASS/POSTER -->
-      <div class="destaque-visual-col">
-        <div class="pass-3d-stage">
-          <div class="pass-3d-card" [style.--pass-accent]="currentShowcase.accent">
-            <!-- Vintage Serial & Header -->
-            <div class="card-header-band">
-              <span class="card-origin">ROTA DE FUGA · SALVO-CONDUTO</span>
-              <span class="card-serial">{{ currentShowcase.serialNumber }}</span>
-            </div>
-
-            <!-- Card Body -->
-            <div class="card-core">
-              <div class="card-emblem">
-                <span class="emblem-star">★</span>
-                <span class="emblem-label">{{ currentShowcase.badge }}</span>
-              </div>
-
-              <div class="card-titles">
-                <span class="plan-label-tag">PLANO DE ACERVO</span>
-                <h3 class="card-plan-name">{{ currentShowcase.name }}</h3>
-                <p class="card-role-title">"{{ currentShowcase.actorRole }}"</p>
-                <span class="card-film-ref">{{ currentShowcase.filmRef }}</span>
-              </div>
-
-              <div class="card-price-display">
-                <span class="price-val">{{ currentShowcase.price }}</span>
-                <span class="price-cycle">{{ currentShowcase.period }}</span>
-              </div>
-
-              <!-- Barcode Graphic -->
-              <div class="card-barcode-row">
-                <div class="barcode-lines">
-                  <span></span><span></span><span></span><span></span><span></span><span></span>
-                  <span></span><span></span><span></span><span></span><span></span><span></span>
-                  <span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
-                <span class="barcode-text">AUTHENTICATED // MASTER PASS</span>
-              </div>
-            </div>
-
-            <!-- Card Stamp/Seal -->
-            <div class="card-official-seal">
-              <div class="seal-inner">
-                <span class="seal-text-top">CURADORIA OFICIAL</span>
-                <span class="seal-glyph">✦</span>
-                <span class="seal-text-bot">TOM HANKS</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Plan Quick Switcher Tabs for 3D View -->
-        <div class="showcase-selector">
-          <span class="selector-hint">Alternar Cartaz 3D:</span>
-          <div class="selector-buttons">
-            @for (plan of plans; track plan.id) {
-              <button
-                class="btn-selector-tab"
-                [class.active]="selectedShowcasePlan() === plan.id"
-                (click)="setShowcase(plan.id)"
-              >
-                {{ plan.name }}
-              </button>
-            }
-          </div>
-        </div>
-      </div>
-
-      <!-- RIGHT: ASYMMETRIC TEXT & PRESTIGE SEALS GRID -->
-      <div class="destaque-info-col">
-        <div class="badge-flagship">
-          <span class="flagship-icon">🎖️</span>
-          <span>DESTAQUE DE CURADORIA · EXPERIÊNCIA CAPITÃO</span>
-        </div>
-
-        <h2 class="destaque-title">
-          A EXPERIÊNCIA DEFINITIVA DO CINEMA DE HERÓIS REAIS.
-        </h2>
-
-        <p class="destaque-copy-quote">
-          "Para aqueles que não aceitam limites na sua rota de fuga: acesso irrestrito, restaurações diretas da película original, arquivos confidenciais escaneados e edições anuais de colecionador."
-        </p>
-
-        <!-- PRESTIGE SEALS (GRADE DE PRÊMIOS / LAURELS) -->
-        <div class="laurels-grid">
-          <div class="laurel-card">
-            <div class="laurel-icon">🏆</div>
-            <div class="laurel-body">
-              <h4>MASTER 4K NATIVO</h4>
-              <p>Transferências puras da película original em ultra-alta definição e cores calibradas.</p>
-            </div>
-          </div>
-
-          <div class="laurel-card">
-            <div class="laurel-icon">📜</div>
-            <div class="laurel-body">
-              <h4>ARQUIVOS CONFIDENCIAIS</h4>
-              <p>Roteiros originais anotados à mão, storyboards conceituais e galerias de produção.</p>
-            </div>
-          </div>
-
-          <div class="laurel-card">
-            <div class="laurel-icon">🎙️</div>
-            <div class="laurel-body">
-              <h4>ÁUDIO COMENTADO VIP</h4>
-              <p>Faixas especiais com historiadores de cinema, críticos renomados e dubladores originais.</p>
-            </div>
-          </div>
-
-          <div class="laurel-card">
-            <div class="laurel-icon">📦</div>
-            <div class="laurel-body">
-              <h4>BOX DE COLECIONADOR</h4>
-              <p>Livreto impresso de luxo e cartazes comemorativos entregues anualmente na sua residência.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="destaque-actions">
-          <button class="btn-destaque-cta" (click)="openPlanModal(currentShowcase)">
-            <span>Garantir Acesso {{ currentShowcase.name }} »</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TIRA DE ELENCO: OS 4 PLANOS COMO CARDS ESCALONADOS -->
+  <!-- CARDS DE PLANOS -->
   <section class="tira-elenco-section" id="planos-section">
-    <div class="tira-header">
-      <div class="kicker-tag justify-center">
-        <span class="kicker-dot"></span>
-        <span>TIRA DE ELENCO // QUADRO DE SALVO-CONDUTO</span>
-      </div>
-      <h2 class="section-heading">ESCOLHA SEU PAPEL NA FUGA</h2>
-      <p class="section-sub">
-        Cada plano confere uma credencial única de acesso ao universo e aos arquivos de Tom Hanks.
-      </p>
-    </div>
-
     <div class="tira-cards-grid">
       @for (plan of plans; track plan.id; let idx = $index) {
-        <div 
+        <div
           class="elenco-card card-index-{{ idx }}"
           [class.is-flagship]="plan.isFlagship"
           [class.is-popular]="plan.isPopular"
@@ -370,7 +48,7 @@
             <span class="elenco-serial">{{ plan.serialNumber }}</span>
           </div>
 
-          <!-- Actor Role ("X as Y") -->
+          <!-- Actor Role -->
           <div class="elenco-role-block">
             <span class="role-as-label">PAPEL ATRIBUÍDO</span>
             <h3 class="role-cast-name">"{{ plan.actorRole }}"</h3>
@@ -411,78 +89,7 @@
     </div>
   </section>
 
-  <!-- BASTIDORES & CURADORIA SECTION -->
-  <section class="bastidores-section" id="bastidores">
-    <div class="bastidores-container">
-      <div class="bastidores-quote-box">
-        <span class="quote-mark">“</span>
-        <blockquote class="bastidores-quote">
-          Não importa se você está à deriva no Pacífico, preso em um saguão de aeroporto ou em uma cápsula a caminho da Lua. A rota de fuga é sempre a determinação do espírito humano contada em celulóide.
-        </blockquote>
-        <cite class="quote-author">— NOTAS DO CURADOR DO ACERVO</cite>
-      </div>
-
-      <div class="bastidores-stats-grid">
-        <div class="stat-card">
-          <span class="stat-number">40+</span>
-          <span class="stat-label">ANOS DE CARREIRA DOCUMENTADOS</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-number">100%</span>
-          <span class="stat-label">MASTER 4K & ÁUDIO RESTAURADO</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-number">0</span>
-          <span class="stat-label">COMPRESSÃO OU INTERRUPÇÕES</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-number">24/7</span>
-          <span class="stat-label">ACESSO AO ACERVO DIGITAL</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOOTER -->
-  <footer class="landing-footer">
-    <div class="footer-diagonal-line"></div>
-    <div class="footer-container">
-      <div class="footer-signature-block">
-        <h3 class="signature-title">"A ÚNICA SAÍDA É ATRAVÉS DA HISTÓRIA."</h3>
-        <p class="signature-sub">ROTA DE FUGA — ARQUIVO CINEMATOGRÁFICO DE TOM HANKS</p>
-      </div>
-
-      <div class="footer-links-row">
-        <div class="footer-col">
-          <span class="footer-heading">NAVEGAÇÃO</span>
-          <a routerLink="/catalogo">Catálogo Completo</a>
-          <a (click)="scrollToPlans()">Tabela de Planos</a>
-          <a routerLink="/login">Acesso de Assinante</a>
-        </div>
-
-        <div class="footer-col">
-          <span class="footer-heading">CURADORIA</span>
-          <a href="#destaque">Restaurações 4K</a>
-          <a href="#bastidores">Arquivos Confidenciais</a>
-          <a href="#ficha-tecnica">Ficha Técnica Geral</a>
-        </div>
-
-        <div class="footer-col">
-          <span class="footer-heading">SUPORTE</span>
-          <a routerLink="/login">Central de Ajuda</a>
-          <a routerLink="/reset-password">Recuperar Salvo-Conduto</a>
-          <span>Termos de Serviço & Privacidade</span>
-        </div>
-      </div>
-
-      <div class="footer-bottom-line">
-        <span>© 2026 Rota de Fuga. Todos os direitos reservados.</span>
-        <span class="designed-tag">Inspirado em Fichas de Cinema Clássico</span>
-      </div>
-    </div>
-  </footer>
-
-  <!-- INTERACTIVE PLAN SELECTION MODAL -->
+  <!-- MODAL DE CONFIRMAÇÃO DE PLANO -->
   @if (selectedPlanForModal()) {
     <div class="modal-overlay" (click)="closePlanModal()">
       <div class="modal-ticket" (click)="$event.stopPropagation()" [style.--modal-accent]="selectedPlanForModal()!.accent">
@@ -527,4 +134,5 @@
       </div>
     </div>
   }
+
 </div>

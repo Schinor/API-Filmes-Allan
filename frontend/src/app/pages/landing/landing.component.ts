@@ -32,8 +32,6 @@ export class LandingComponent {
   auth = inject(AuthService);
   router = inject(Router);
 
-  // Selected plan for 3D showcase and interactive modal
-  selectedShowcasePlan = signal<string>('capitao');
   selectedPlanForModal = signal<PlanItem | null>(null);
 
   plans: PlanItem[] = [
@@ -124,21 +122,6 @@ export class LandingComponent {
     },
   ];
 
-  get currentShowcase(): PlanItem {
-    return this.plans.find(p => p.id === this.selectedShowcasePlan()) || this.plans[3];
-  }
-
-  setShowcase(planId: string) {
-    this.selectedShowcasePlan.set(planId);
-  }
-
-  scrollToPlans() {
-    const el = document.getElementById('planos-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  }
-
   openPlanModal(plan: PlanItem) {
     this.selectedPlanForModal.set(plan);
   }
@@ -156,3 +139,4 @@ export class LandingComponent {
     }
   }
 }
+
