@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.reset_token import ResetToken
@@ -8,7 +8,7 @@ from app.core.config import settings
 
 def create_reset_token(db: Session, usuario_id: int) -> ResetToken:
     token_str = secrets.token_urlsafe(32)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expira_em = now + timedelta(minutes=settings.RESET_TOKEN_EXPIRE_MINUTES)
 
     reset_token = ResetToken(

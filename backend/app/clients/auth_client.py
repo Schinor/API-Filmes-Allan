@@ -1,22 +1,55 @@
 import os
+from typing import Optional, Any, Dict
 import httpx
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from app.core.config import settings
 
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
+AUTH_SERVICE_URL = getattr(settings, "AUTH_SERVICE_URL", os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")).rstrip("/")
 
 
-async def get_authenticated_user(authorization: str | None) -> dict:
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Token não enviado")
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(
-                f"{AUTH_SERVICE_URL}/auth/me",
-                headers={"Authorization": authorization},
+async def forward_request(
+    method: str,
+    path: str,
+    json_data: Optional[Dict[str, Any]] = None,
+    data: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, str]] = None,
+) -> Any:
+    url = f"{AUTH_SERVICE_URL}{path}"
+    req_headers = {}
+    if headers and "authorization" in headers:
+        req_headers["authorization"] = headers["authorization"]
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.request(
+                method=method,
+                url=url,
+                json=json_data,
+                data=data,
+                headers=req_headers,
             )
-    except httpx.RequestError:
-        raise HTTPException(status_code=503, detail="Serviço de autenticação indisponível")
+            if resp.status_code >= 400:
+                try:
+                    err_json = resp.json()
+                    detail = err_json.get("detail", err_json.get("message", "Erro no auth-service"))
+                except Exception:
+                    detail = resp.text or "Erro no auth-service"
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            return resp.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=exc.response.status_code, detail="Erro no auth-service")
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Serviço de autenticação inacessível: {str(exc)}",
+            )
 
-    if resp.status_code != 200:
-        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
-    return resp.json()  # {"id": ..., "nome": ..., "email": ..., "role": ...}
+
+async def get_authenticated_user(authorization: Optional[str]) -> Dict[str, Any]:
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token não enviado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await forward_request("GET", "/me", headers={"authorization": authorization})

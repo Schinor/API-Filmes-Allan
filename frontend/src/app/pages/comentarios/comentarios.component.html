@@ -4,7 +4,7 @@
       <h1>💬 Meus Comentários</h1>
       <p class="subtitle">
         Filmes que você comentou no catálogo
-        @if (auth.isAdmin()) {
+        @if (auth.hasPermission('administrar:sistema')) {
           <span class="badge-role-admin">🛡️ Modo Administrador (Moderação ativa)</span>
         }
       </p>
