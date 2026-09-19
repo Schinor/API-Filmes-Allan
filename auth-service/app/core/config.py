@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # Expiração do token de redefinição de senha em minutos (30 minutos)
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Limite de solicitações de redefinição por usuário dentro da janela (anti-abuso)
+    RESET_REQUEST_LIMIT: int = 3
+    RESET_REQUEST_WINDOW_MINUTES: int = 15
+
+    # Somente desenvolvimento: sem credenciais SMTP, registra o link no log em vez de falhar
+    EMAIL_LOG_LINK_WITHOUT_SMTP: bool = False
+
     model_config = SettingsConfigDict(env_file=(".env", "../.env", "../../.env"), extra="ignore")
 
 

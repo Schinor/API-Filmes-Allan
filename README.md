@@ -166,16 +166,37 @@ ACCESS_TOKEN_EXPIRE_MINUTES=1440
 # Rede e Portas
 PORT=8000
 AUTH_SERVICE_URL=http://auth-service:8001
-CATALOGO_URL=http://localhost:8000
 
-# Mailtrap (SMTP Sandbox)
+# E-mail (SMTP Mailtrap)
+# DESENVOLVIMENTO — Mailtrap Sandbox: captura os e-mails numa caixa de testes,
+# NÃO entrega ao destinatário real.
 MAILTRAP_HOST=sandbox.smtp.mailtrap.io
 MAILTRAP_PORT=2525
 MAILTRAP_USERNAME=seu_usuario_mailtrap
 MAILTRAP_PASSWORD=sua_senha_mailtrap
+#
+# PRODUÇÃO — Mailtrap Email Sending: entrega ao e-mail real do usuário.
+# Exige domínio verificado no Mailtrap (SPF/DKIM). Troque as linhas acima por:
+# MAILTRAP_HOST=live.smtp.mailtrap.io
+# MAILTRAP_PORT=587
+# MAILTRAP_USERNAME=api
+# MAILTRAP_PASSWORD=token_de_api_do_mailtrap
+#
+# O remetente precisa pertencer ao domínio verificado (em produção).
 MAILTRAP_FROM_EMAIL=nao-responda@tomhanksfilmes.com
 MAILTRAP_FROM_NAME="Catálogo Filmes Tom Hanks"
+
+# URL PÚBLICA do catálogo (com HTTPS em produção) — usada no link do e-mail
+CATALOGO_URL=http://localhost:8000
+
+# Redefinição de senha
 RESET_TOKEN_EXPIRE_MINUTES=30
+# Máximo de solicitações por usuário dentro da janela (anti-abuso)
+RESET_REQUEST_LIMIT=3
+RESET_REQUEST_WINDOW_MINUTES=15
+# Somente dev: sem credenciais SMTP, registra o link no log do auth-service
+# em vez de falhar. Mantenha false em produção.
+EMAIL_LOG_LINK_WITHOUT_SMTP=false
 ```
 
 ---
@@ -208,8 +229,9 @@ docker compose up --build
    - `DATABASE_URL`: String de conexão do seu banco MariaDB existente
    - `TMDB_API_KEY`: Seu Bearer Token da TMDB
    - `SECRET_KEY`: Sua chave secreta JWT
-   - `MAILTRAP_USERNAME`: Usuário do Mailtrap Sandbox
-   - `MAILTRAP_PASSWORD`: Senha do Mailtrap Sandbox
+   - `MAILTRAP_HOST`, `MAILTRAP_PORT`, `MAILTRAP_USERNAME`, `MAILTRAP_PASSWORD`: credenciais SMTP (Sandbox para testes, Email Sending para entrega real)
+   - `MAILTRAP_FROM_EMAIL`: remetente do domínio verificado no Mailtrap
+   - `CATALOGO_URL`: URL pública do catálogo (usada no link do e-mail)
 5. Clique em **Deploy the stack**. O Portainer fará o build do `catalogo` e do `auth-service` e subirá a stack conectada na rede privada.
 
 ---

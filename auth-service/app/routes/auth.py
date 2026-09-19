@@ -1,8 +1,10 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_current_user
 from app.core.email import send_password_reset_email
@@ -17,7 +19,14 @@ from app.schemas.auth import (
     ValidateTokenResponse,
 )
 
+logger = logging.getLogger("auth-service.auth")
+
 router = APIRouter(tags=["auth"])
+
+FORGOT_PASSWORD_MESSAGE = (
+    "Se o e-mail informado estiver cadastrado, enviaremos um link para redefinir a senha. "
+    "Verifique sua caixa de entrada e o spam."
+)
 
 
 @router.post("/cadastro", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)
@@ -72,9 +81,15 @@ def me(current_user=Depends(get_current_user)):
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    # Resposta sempre neutra: não revela se o e-mail está cadastrado nem se o envio falhou
     usuario = usuario_repo.get_by_email(db, payload.email)
     if not usuario:
-        raise HTTPException(status_code=404, detail="E-mail não cadastrado no sistema.")
+        return {"message": FORGOT_PASSWORD_MESSAGE}
+
+    recentes = reset_token_repo.count_recent(db, usuario.id, settings.RESET_REQUEST_WINDOW_MINUTES)
+    if recentes >= settings.RESET_REQUEST_LIMIT:
+        logger.warning("Limite de solicitações de redefinição atingido para o usuário id=%s", usuario.id)
+        return {"message": FORGOT_PASSWORD_MESSAGE}
 
     reset_token = reset_token_repo.create_reset_token(db, usuario.id)
 
@@ -85,13 +100,10 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
             user_name=usuario.nome,
         )
     except Exception:
-        # Continua para não travar a experiência caso Mailtrap falhe em sandbox dev
+        # Já registrado em send_password_reset_email; mantém a resposta neutra
         pass
 
-    return {
-        "message": "E-mail de recuperação enviado com sucesso. Verifique sua caixa de entrada.",
-        "token": reset_token.token,
-    }
+    return {"message": FORGOT_PASSWORD_MESSAGE}
 
 
 @router.get("/validate-reset-token/{token}", response_model=ValidateTokenResponse)

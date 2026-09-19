@@ -115,7 +115,7 @@ export class LoginComponent {
       next: (res) => {
         this.carregando.set(false);
         this.sucesso.set(
-          res.message || 'E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada no Mailtrap.'
+          res.message || 'Se o e-mail estiver cadastrado, enviaremos um link de redefinição. Verifique sua caixa de entrada e o spam.'
         );
         this.emailRecuperacao = '';
       },

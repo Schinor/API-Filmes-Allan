@@ -12,6 +12,7 @@ os.environ["RESET_TOKEN_EXPIRE_MINUTES"] = "30"
 sys.path.insert(0, os.path.abspath("auth-service"))
 
 from datetime import datetime, timedelta, timezone
+from email import message_from_string
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -47,6 +48,19 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
+
+
+@pytest.fixture
+def emails_enviados(monkeypatch):
+    """Substitui o envio SMTP e registra (to_email, token, user_name) de cada chamada."""
+    enviados = []
+
+    def fake_send(to_email, token, user_name="Usuário"):
+        enviados.append({"to": to_email, "token": token, "nome": user_name})
+        return True
+
+    monkeypatch.setattr("app.routes.auth.send_password_reset_email", fake_send)
+    return enviados
 
 
 @pytest.fixture(autouse=True)
@@ -185,22 +199,27 @@ def test_permissao_exclusiva_admin():
     assert allowed.json()["admin_access"] is True
 
 
-def test_fluxo_completo_esqueci_senha_e_redefinicao():
+def test_fluxo_completo_esqueci_senha_e_redefinicao(emails_enviados):
     # 1. Cria usuário
     client.post(
         "/cadastro",
         json={"nome": "Usuario Teste", "email": "recuperar@exemplo.com", "senha": "senhaAntiga123"},
     )
 
-    # 2. Solicita recuperação para e-mail não cadastrado (deve retornar 404)
+    # 2. Solicita recuperação para e-mail não cadastrado: resposta neutra e nenhum e-mail enviado
     fake_resp = client.post("/forgot-password", json={"email": "inexistente@exemplo.com"})
-    assert fake_resp.status_code == 404
+    assert fake_resp.status_code == 200
+    assert emails_enviados == []
 
-    # 3. Solicita recuperação para e-mail cadastrado
+    # 3. Solicita recuperação para e-mail cadastrado: o token vai só por e-mail, nunca na resposta
     forgot_resp = client.post("/forgot-password", json={"email": "recuperar@exemplo.com"})
     assert forgot_resp.status_code == 200
-    token = forgot_resp.json()["token"]
-    assert token is not None
+    assert "token" not in forgot_resp.json()
+    assert forgot_resp.json() == fake_resp.json()
+    assert len(emails_enviados) == 1
+    assert emails_enviados[0]["to"] == "recuperar@exemplo.com"
+    token = emails_enviados[0]["token"]
+    assert token
 
     # 4. Valida token antes do uso
     val_resp = client.get(f"/validate-reset-token/{token}")
@@ -231,13 +250,13 @@ def test_fluxo_completo_esqueci_senha_e_redefinicao():
     assert ok_login.status_code == 200
 
 
-def test_negativo_reuso_de_token():
+def test_negativo_reuso_de_token(emails_enviados):
     client.post(
         "/cadastro",
         json={"nome": "Reuso Teste", "email": "reuso@exemplo.com", "senha": "senhaOriginal123"},
     )
-    forgot_resp = client.post("/forgot-password", json={"email": "reuso@exemplo.com"})
-    token = forgot_resp.json()["token"]
+    client.post("/forgot-password", json={"email": "reuso@exemplo.com"})
+    token = emails_enviados[0]["token"]
 
     r1 = client.post("/reset-password", json={"token": token, "nova_senha": "novaSenha123"})
     assert r1.status_code == 200
@@ -285,3 +304,74 @@ def test_negativo_token_inexistente():
     )
     assert reset_resp.status_code == 400
     assert "inválido" in reset_resp.json()["detail"].lower()
+
+
+def test_forgot_password_falha_de_envio_mantem_resposta_neutra(monkeypatch):
+    client.post(
+        "/cadastro",
+        json={"nome": "Falha Smtp", "email": "falha@exemplo.com", "senha": "senhaOriginal123"},
+    )
+
+    def send_quebrado(*args, **kwargs):
+        raise ConnectionError("SMTP indisponível")
+
+    monkeypatch.setattr("app.routes.auth.send_password_reset_email", send_quebrado)
+
+    resp = client.post("/forgot-password", json={"email": "falha@exemplo.com"})
+    assert resp.status_code == 200
+    assert "token" not in resp.json()
+
+
+def test_forgot_password_limita_solicitacoes_por_usuario(emails_enviados):
+    from app.core.config import settings
+
+    client.post(
+        "/cadastro",
+        json={"nome": "Spam Teste", "email": "spam@exemplo.com", "senha": "senhaOriginal123"},
+    )
+
+    for _ in range(settings.RESET_REQUEST_LIMIT + 2):
+        resp = client.post("/forgot-password", json={"email": "spam@exemplo.com"})
+        assert resp.status_code == 200
+
+    assert len(emails_enviados) == settings.RESET_REQUEST_LIMIT
+
+
+def test_email_sem_credenciais_smtp_falha_explicitamente(monkeypatch):
+    from app.core import email as email_mod
+
+    monkeypatch.setattr(email_mod.settings, "MAILTRAP_USERNAME", "")
+    monkeypatch.setattr(email_mod.settings, "MAILTRAP_PASSWORD", "")
+    monkeypatch.setattr(email_mod.settings, "EMAIL_LOG_LINK_WITHOUT_SMTP", False)
+
+    with pytest.raises(email_mod.EmailNotConfiguredError):
+        email_mod.send_password_reset_email("a@exemplo.com", "tok", "Fulano")
+
+    monkeypatch.setattr(email_mod.settings, "EMAIL_LOG_LINK_WITHOUT_SMTP", True)
+    assert email_mod.send_password_reset_email("a@exemplo.com", "tok", "Fulano") is True
+
+
+def test_email_escapa_html_no_nome_do_usuario(monkeypatch):
+    from app.core import email as email_mod
+
+    capturado = {}
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def starttls(self): pass
+        def login(self, *a): pass
+        def sendmail(self, frm, to, msg): capturado["msg"] = msg
+
+    monkeypatch.setattr(email_mod.settings, "MAILTRAP_USERNAME", "api")
+    monkeypatch.setattr(email_mod.settings, "MAILTRAP_PASSWORD", "segredo")
+    monkeypatch.setattr(email_mod.smtplib, "SMTP", FakeSMTP)
+
+    assert email_mod.send_password_reset_email("a@exemplo.com", "tok", "<script>x</script>") is True
+    # O corpo MIME é base64: decodifica cada parte antes de checar
+    mensagem = message_from_string(capturado["msg"])
+    html_parte = next(p for p in mensagem.walk() if p.get_content_type() == "text/html")
+    corpo = html_parte.get_payload(decode=True).decode("utf-8")
+    assert "&lt;script&gt;" in corpo
+    assert "<script>" not in corpo

@@ -19,7 +19,6 @@ export interface Token {
 
 export interface ForgotPasswordResponse {
   message: string;
-  token?: string;
 }
 
 export interface ResetPasswordResponse {

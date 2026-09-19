@@ -24,6 +24,16 @@ def create_reset_token(db: Session, usuario_id: int) -> ResetToken:
     return reset_token
 
 
+def count_recent(db: Session, usuario_id: int, window_minutes: int) -> int:
+    # criado_em é gravado como UTC sem fuso no banco
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=window_minutes)
+    return (
+        db.query(ResetToken)
+        .filter(ResetToken.usuario_id == usuario_id, ResetToken.criado_em >= since)
+        .count()
+    )
+
+
 def get_by_token(db: Session, token: str) -> Optional[ResetToken]:
     return db.query(ResetToken).filter(ResetToken.token == token.strip()).first()
 

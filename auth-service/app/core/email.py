@@ -1,3 +1,4 @@
+import html
 import smtplib
 import logging
 from email.mime.text import MIMEText
@@ -5,6 +6,10 @@ from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
 
 logger = logging.getLogger("auth-service.email")
+
+
+class EmailNotConfiguredError(RuntimeError):
+    """Credenciais SMTP ausentes: o e-mail não pode ser enviado."""
 
 
 def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuário") -> bool:
@@ -15,6 +20,7 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
     """
     catalogo_url = (settings.CATALOGO_URL or "http://localhost:8000").strip(' "\'').rstrip('/')
     reset_url = f"{catalogo_url}/reset-password?token={token}"
+    safe_name = html.escape(user_name)
     subject = "Redefinição de Senha — Catálogo Tom Hanks"
 
     smtp_host = (settings.MAILTRAP_HOST or "sandbox.smtp.mailtrap.io").strip(' "\'')
@@ -104,7 +110,7 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
     <body>
       <div class="card">
         <div class="logo">🎬 Catálogo Tom Hanks</div>
-        <h2>Olá, {user_name}!</h2>
+        <h2>Olá, {safe_name}!</h2>
         <p>Recebemos uma solicitação para redefinir a sua senha de acesso ao <strong>Catálogo de Filmes Tom Hanks</strong>.</p>
         <p>Clique no botão abaixo para escolher uma nova senha. <strong>Atenção: este link expira em {settings.RESET_TOKEN_EXPIRE_MINUTES} minutos</strong> e só pode ser utilizado uma única vez.</p>
         
@@ -133,8 +139,12 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
     )
 
     if not smtp_user or not smtp_pass:
-        print(f"[auth-service] AVISO: Mailtrap não configurado (MAILTRAP_USERNAME/PASSWORD vazios). Link gerado: {reset_url}")
-        return True
+        if settings.EMAIL_LOG_LINK_WITHOUT_SMTP:
+            logger.warning("SMTP não configurado; link de redefinição (modo dev): %s", reset_url)
+            return True
+        raise EmailNotConfiguredError(
+            "MAILTRAP_USERNAME/MAILTRAP_PASSWORD não configurados; e-mail de redefinição não enviado"
+        )
 
     try:
         msg = MIMEMultipart("alternative")
@@ -150,8 +160,8 @@ def send_password_reset_email(to_email: str, token: str, user_name: str = "Usuá
             server.login(smtp_user, smtp_pass)
             server.sendmail(from_email, [to_email], msg.as_string())
 
-        print(f"[auth-service] E-mail de recuperação enviado com sucesso via Mailtrap para {to_email}")
+        logger.info("E-mail de redefinição enviado via %s para o usuário %s", smtp_host, to_email)
         return True
-    except Exception as e:
-        print(f"[auth-service] Erro ao enviar e-mail via Mailtrap para {to_email} ({smtp_host}:{smtp_port}): {str(e)}")
+    except Exception:
+        logger.exception("Falha ao enviar e-mail de redefinição via %s:%s", smtp_host, smtp_port)
         raise
