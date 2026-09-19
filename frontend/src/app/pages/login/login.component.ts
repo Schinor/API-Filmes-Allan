@@ -1,6 +1,6 @@
 import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -12,6 +12,7 @@ import { AuthService } from '../../services/auth.service';
 export class LoginComponent {
   auth = inject(AuthService);
   router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   modo = signal<'login' | 'cadastro' | 'esqueci-senha'>('login');
   carregando = signal(false);
@@ -23,6 +24,15 @@ export class LoginComponent {
   nome = '';
   role = 'amigo-do-wilson';
   emailRecuperacao = '';
+
+  constructor() {
+    const requestedRole = this.route.snapshot.queryParamMap.get('role');
+    const publicRoles = ['amigo-do-wilson', 'preso-no-terminal', 'houston-temos-acesso', 'capitao-hanks'];
+    if (requestedRole && publicRoles.includes(requestedRole)) {
+      this.role = requestedRole;
+      this.modo.set('cadastro');
+    }
+  }
 
   mudarModo(novoModo: 'login' | 'cadastro' | 'esqueci-senha') {
     this.modo.set(novoModo);
