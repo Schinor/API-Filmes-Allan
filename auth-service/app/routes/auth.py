@@ -24,12 +24,20 @@ router = APIRouter(tags=["auth"])
 def cadastro(payload: UsuarioCreate, db: Session = Depends(get_db)):
     if usuario_repo.get_by_email(db, payload.email):
         raise HTTPException(status_code=400, detail="E-mail já cadastrado")
+
+    requested_role = (payload.role or "amigo-do-wilson").strip().lower()
+    if requested_role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="O papel de administrador não pode ser escolhido no cadastro público",
+        )
+
     return usuario_repo.create(
         db,
         nome=payload.nome,
         email=payload.email,
         senha=payload.senha,
-        role=payload.role or "amigo-do-wilson",
+        role=requested_role,
     )
 
 

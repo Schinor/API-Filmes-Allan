@@ -22,6 +22,7 @@ from app.core.database import Base, get_db
 from app.models.usuario import Usuario
 from app.models.reset_token import ResetToken
 from app.core.rbac_seed import seed_rbac
+from app.repositories import usuario_repo
 from app.main import app
 
 # Banco de dados em memória exclusivo para a suite de testes automatizados
@@ -111,13 +112,12 @@ def test_cadastro_e_login_usuario():
 
 
 def test_roles_e_matriz_permissoes():
-    # Cria usuários com cada um dos 5 papéis
+    # Cria usuários com cada um dos 4 papéis disponíveis no cadastro público
     papeis = [
         ("wilson@exemplo.com", "amigo-do-wilson", "assistir:catalogo", "listar:favoritos"),
         ("terminal@exemplo.com", "preso-no-terminal", "listar:favoritos", "criar:comentarios"),
         ("houston@exemplo.com", "houston-temos-acesso", "criar:comentarios", "assistir:catalogo-premium"),
         ("capitao@exemplo.com", "capitao-hanks", "assistir:catalogo-premium", "administrar:sistema"),
-        ("admin@exemplo.com", "admin", "administrar:sistema", None),
     ]
 
     for email, role_slug, perm_esperada, perm_nao_esperada in papeis:
@@ -131,6 +131,23 @@ def test_roles_e_matriz_permissoes():
         assert perm_esperada in data["permissions"]
         if perm_nao_esperada:
             assert perm_nao_esperada not in data["permissions"]
+
+
+def test_cadastro_publico_nao_permite_admin():
+    response = client.post(
+        "/cadastro",
+        json={
+            "nome": "Admin Indevido",
+            "email": "admin-indevido@exemplo.com",
+            "senha": "password123",
+            "role": "admin",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "O papel de administrador não pode ser escolhido no cadastro público"
+    )
 
 
 def test_permissao_exclusiva_admin():
@@ -148,10 +165,16 @@ def test_permissao_exclusiva_admin():
     assert denied.status_code == 403
 
     # 2. Admin acessando endpoint exclusivo -> 200
-    admin_resp = client.post(
-        "/cadastro",
-        json={"nome": "Siriani Admin", "email": "admin@exemplo.com", "senha": "adminSecret123", "role": "admin"},
+    # Administradores são provisionados internamente, nunca pelo cadastro público.
+    db = TestingSessionLocal()
+    usuario_repo.create(
+        db,
+        nome="Siriani Admin",
+        email="admin@exemplo.com",
+        senha="adminSecret123",
+        role="admin",
     )
+    db.close()
     admin_token = client.post(
         "/login",
         data={"username": "admin@exemplo.com", "password": "adminSecret123"},
