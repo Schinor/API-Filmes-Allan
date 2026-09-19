@@ -40,7 +40,7 @@ Na **Atividade 3**, toda a responsabilidade de autenticação e identidade foi d
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │   FastAPI (Microsserviço de Autenticação)                        │  │
 │  │   - Cadastro e Login com JWT                                     │  │
-│  │   - Gestão de Roles (usuario, admin)                             │  │
+│  │   - Gestão de papéis e permissões (RBAC)                         │  │
 │  │   - Esqueci minha senha (Reset Tokens com expiração de 30 min)   │  │
 │  │   - Integração SMTP Mailtrap para disparo de e-mails reais       │  │
 │  └──────────────────┬─────────────────────────────┬─────────────────┘  │
@@ -265,22 +265,57 @@ CREATE TABLE comentarios (
 
 ### 1. O que cada papel pode fazer
 
-| Papel | Permissões / Ações Permitidas |
+| Papel | Permissões / ações permitidas |
 |---|---|
-| **`usuario`** *(padrão no cadastro)* | • Ver catálogo e detalhes de filmes<br>• Criar, listar e remover os **próprios** favoritos<br>• Criar comentários; remover **apenas os próprios** comentários<br>• Ver o próprio perfil (`/auth/me`) e redefinir a própria senha |
-| **`admin`** | • Tudo que o papel `usuario` pode fazer<br>• **Remover comentário de qualquer usuário (moderação de conteúdo)** *(Ação exclusiva de admin)* |
+| **`amigo-do-wilson`** *(padrão)* | Ver e pesquisar o catálogo; ver detalhes dos filmes; listar comentários. |
+| **`preso-no-terminal`** | Tudo de `amigo-do-wilson`; listar, adicionar e remover os próprios favoritos. |
+| **`houston-temos-acesso`** | Tudo de `preso-no-terminal`; criar comentários e apagar os próprios comentários. |
+| **`capitao-hanks`** | Tudo de `houston-temos-acesso`; acessar o catálogo premium. |
+| **`admin`** | Todas as permissões anteriores; **apagar comentários de qualquer usuário**; listar e gerenciar usuários; alterar papéis; gerenciar a matriz de permissões e administrar o sistema. |
 
-A checagem de permissão acontece **sempre no backend** (`catalogo`, consultando o `auth-service`) — nunca apenas na interface visual. Qualquer requisição direta via Postman, curl ou scripts para `DELETE /api/comentarios/{id}` de outro usuário feita por um usuário comum é recusada com **HTTP 403 Forbidden** (`"Apenas o autor ou um administrador podem remover este comentário"`).
+Os quatro primeiros são papéis de usuário comum disponíveis no cadastro público. O papel
+`admin` não aparece no formulário e uma tentativa de enviá-lo diretamente para
+`POST /api/auth/cadastro` é recusada com **HTTP 403**. Administradores devem ser
+provisionados internamente ou promovidos por um administrador autorizado. A relação
+completa também está registrada em [`docs/PERFIS.md`](docs/PERFIS.md).
+
+A checagem de permissão acontece **sempre no backend**, nunca apenas na interface visual.
+Qualquer requisição direta via Postman, curl ou scripts para
+`DELETE /api/comentarios/{id}` de outro usuário feita por um usuário comum é recusada
+com **HTTP 403 Forbidden** (`"Apenas o autor ou um administrador podem remover este comentário"`).
 
 ### 2. Padrão de Arquitetura Utilizado: Padrão A vs Padrão B
 
-**Hoje o projeto utiliza o Padrão A (Enforcement Centralizado):**
-O serviço `catalogo` não decodifica o token sozinho para decidir autorizações sensíveis. A cada requisição protegida, o catálogo consulta `GET /auth/me` no `auth-service` através da rede interna privada Docker (`filmes-network`) e utiliza a resposta autoritativa para validar a identidade e o papel (`role`) do usuário. Isso preserva o limite estrito de responsabilidade da arquitetura de microsserviços definida na Atividade 3, onde o `auth-service` é a única autoridade de identidade.
+**Hoje o projeto utiliza principalmente o Padrão B (claims no JWT):** o `auth-service`
+inclui `role` e `permissions` no token assinado durante o login. O catálogo valida a
+assinatura e lê esses claims localmente para autorizar as rotas protegidas, sem uma
+chamada de rede adicional em cada ação. Existe apenas um fallback para `GET /me` no
+`auth-service` quando não é possível resolver o usuário localmente.
 
-**O que mudaria para o Padrão B (Claims no JWT / Validação Distribuída):**
-No Padrão B, o `catalogo` deixaria de chamar `/auth/me` a cada requisição e passaria a decodificar o token JWT localmente, aproveitando as variáveis `SECRET_KEY` e `ALGORITHM` compartilhadas para ler o claim `role` diretamente do payload assinado.
-- **Vantagem do Padrão B:** Menor latência de rede interna, sem chamadas HTTP síncronas adicionais entre microsserviços.
-- **Desvantagem do Padrão B (Revogação/Consistência):** Com `ACCESS_TOKEN_EXPIRE_MINUTES=1440` (24 horas), se o papel de um usuário for alterado no banco de dados (ex.: rebaixado de `admin` para `usuario`), essa mudança demoraria até 24 horas para surtir efeito no catálogo (até o token expirar e um novo ser gerado). No **Padrão A**, como a consulta ao `auth-service` ocorre em tempo de execução, a alteração de papel tem **efeito imediato**.
+**O que mudaria para o Padrão A (enforcement centralizado):** o catálogo deixaria de
+usar `role` e `permissions` do JWT para decidir a autorização e consultaria o
+`auth-service` em cada requisição protegida. Alterações de papel teriam efeito imediato,
+mas cada ação ganharia uma chamada de rede e passaria a depender da disponibilidade e
+da capacidade do `auth-service`. No padrão atual, um token já emitido pode conservar as
+permissões antigas até expirar (atualmente, em até 24 horas).
+
+### 3. Demonstração prática da ação exclusiva de administrador
+
+Use o mesmo comentário, pertencente a outro usuário, nos dois testes abaixo:
+
+1. Faça login com um papel comum que possua comentários, como `houston-temos-acesso`.
+2. Envie `DELETE /api/comentarios/{id}` com o token desse usuário e registre o retorno
+   **403 Forbidden**.
+3. Faça login como `admin`, repita a mesma requisição e registre o retorno **200 OK**.
+4. Salve as capturas nos caminhos abaixo; os links já estão preparados para inclusão.
+
+<!-- Depois de capturar o caso 403, remova os espaços ao redor de ! para exibir a imagem:
+! [Usuário comum recebe 403](assets/rbac-usuario-403.png)
+-->
+
+<!-- Depois de capturar o caso 200, remova os espaços ao redor de ! para exibir a imagem:
+! [Administrador executa a moderação](assets/rbac-admin-200.png)
+-->
 
 ---
 
@@ -295,7 +330,8 @@ Executar a suíte de testes com `pytest`:
 Cobertura dos testes:
 - Endpoint `GET /health` do `auth-service`.
 - Cadastro, login e consulta de perfil `/me` com retorno de `role`.
-- Consulta e isolamento de papéis (`usuario`, `admin`).
+- Consulta e isolamento dos cinco papéis RBAC.
+- Bloqueio do autocadastro com papel `admin`.
 - Fluxo de ponta a ponta de esqueci-senha e redefinição com validação de expiração e reuso.
 - **RBAC no Catálogo (`DELETE /api/comentarios/{id}`):**
   - Usuário comum removendo o próprio comentário ➔ **200 OK**.
@@ -307,4 +343,3 @@ Cobertura dos testes:
 ---
 
 *Trabalho desenvolvido para a disciplina de Cloud — Professor [@siriani](https://github.com/siriani).*
-
