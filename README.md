@@ -301,21 +301,30 @@ permissões antigas até expirar (atualmente, em até 24 horas).
 
 ### 3. Demonstração prática da ação exclusiva de administrador
 
-Use o mesmo comentário, pertencente a outro usuário, nos dois testes abaixo:
+O teste usa comentários publicados por contas diferentes e compara os controles
+disponíveis para um usuário comum e para um administrador:
 
 1. Faça login com um papel comum que possua comentários, como `houston-temos-acesso`.
 2. Envie `DELETE /api/comentarios/{id}` com o token desse usuário e registre o retorno
    **403 Forbidden**.
 3. Faça login como `admin`, repita a mesma requisição e registre o retorno **200 OK**.
-4. Salve as capturas nos caminhos abaixo; os links já estão preparados para inclusão.
+4. Confirme também na interface que o usuário comum não recebe o controle de exclusão
+   sobre comentários alheios, enquanto o administrador recebe os controles de moderação.
 
-<!-- Depois de capturar o caso 403, remova os espaços ao redor de ! para exibir a imagem:
-! [Usuário comum recebe 403](assets/rbac-usuario-403.png)
--->
+#### Usuário comum
 
-<!-- Depois de capturar o caso 200, remova os espaços ao redor de ! para exibir a imagem:
-! [Administrador executa a moderação](assets/rbac-admin-200.png)
--->
+A conta comum pode visualizar os comentários da comunidade, mas não recebe o botão para
+excluir comentários publicados por outras contas. Se tentar chamar o endpoint diretamente,
+o backend responde com **403 Forbidden**.
+
+![Usuário comum sem permissão para moderar comentários alheios](assets/Teste-Acesso.png)
+
+#### Administrador
+
+A conta administrativa recebe o indicador de moderação ativa e pode excluir comentários
+de qualquer usuário. A mesma operação aceita pelo backend retorna **200 OK**.
+
+![Administrador com controles de moderação](assets/Teste-Acesso-Admin.png)
 
 ---
 
