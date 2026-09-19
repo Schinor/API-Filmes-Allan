@@ -3,19 +3,18 @@ from sqlalchemy.orm import Session
 from app.models.comentario import Comentario
 
 
-def list_by_user_and_movie(db: Session, usuario_id: int, tmdb_movie_id: int) -> List[Comentario]:
+def list_by_movie(db: Session, tmdb_movie_id: int) -> List[Comentario]:
     return (
         db.query(Comentario)
-        .filter(Comentario.usuario_id == usuario_id, Comentario.tmdb_movie_id == tmdb_movie_id)
+        .filter(Comentario.tmdb_movie_id == tmdb_movie_id)
         .order_by(Comentario.criado_em.desc())
         .all()
     )
 
 
-def list_by_user(db: Session, usuario_id: int) -> List[Comentario]:
+def list_all(db: Session) -> List[Comentario]:
     return (
         db.query(Comentario)
-        .filter(Comentario.usuario_id == usuario_id)
         .order_by(Comentario.criado_em.desc())
         .all()
     )

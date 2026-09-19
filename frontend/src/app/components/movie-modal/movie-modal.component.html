@@ -85,7 +85,7 @@
                 <p>{{ c.texto }}</p>
                 <div class="comentario-meta">
                   <span>{{ c.criado_em | slice:0:10 }}</span>
-                  @if (auth.hasPermission('apagar:comentario-proprio') || auth.hasPermission('apagar:comentario-de-outro')) {
+                  @if (c.usuario_id === auth.user()?.id || auth.hasPermission('apagar:comentario-de-outro')) {
                     <button
                       class="btn-del"
                       (click)="deletarComentario(c.id)"

@@ -11,22 +11,22 @@ router = APIRouter(prefix="/api/comentarios", tags=["comentarios"])
 
 
 @router.get("", response_model=List[ComentarioOut])
-async def listar_meus_comentarios(
-    user: dict = Depends(require_permission("listar:comentarios")),
+async def listar_todos_comentarios(
+    _user: dict = Depends(require_permission("listar:comentarios")),
     db: Session = Depends(get_db),
 ):
-    """Lista todos os comentários do usuário logado — requer 'listar:comentarios'."""
-    return comentario_repo.list_by_user(db, user["id"])
+    """Lista os comentários da comunidade — requer 'listar:comentarios'."""
+    return comentario_repo.list_all(db)
 
 
 @router.get("/{tmdb_movie_id}", response_model=List[ComentarioOut])
 async def listar_comentarios(
     tmdb_movie_id: int,
-    user: dict = Depends(require_permission("listar:comentarios")),
+    _user: dict = Depends(require_permission("listar:comentarios")),
     db: Session = Depends(get_db),
 ):
-    """Lista comentários do usuário logado para um filme específico — requer 'listar:comentarios'."""
-    return comentario_repo.list_by_user_and_movie(db, user["id"], tmdb_movie_id)
+    """Lista os comentários da comunidade para um filme — requer 'listar:comentarios'."""
+    return comentario_repo.list_by_movie(db, tmdb_movie_id)
 
 
 @router.post("", response_model=ComentarioOut, status_code=status.HTTP_201_CREATED)

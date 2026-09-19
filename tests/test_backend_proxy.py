@@ -194,3 +194,37 @@ def test_rbac_comentarios_dono_outro_usuario_e_admin():
     del_404_resp = client.delete("/api/comentarios/999999")
     assert del_404_resp.status_code == 404
     assert del_404_resp.json()["detail"] == "Comentário não encontrado"
+
+
+def test_listar_comentarios_exibe_publicacoes_de_outros_usuarios():
+    app, TestingSessionLocal, current_user, TestClient = setup_catalogo_app()
+    client = TestClient(app)
+
+    app.dependency_overrides[current_user] = lambda: {
+        "id": 1,
+        "nome": "Autor",
+        "email": "autor@teste.com",
+        "role": "houston-temos-acesso",
+        "permissions": ["listar:comentarios", "criar:comentarios"],
+    }
+    criado = client.post(
+        "/api/comentarios",
+        json={"tmdb_movie_id": 550, "texto": "Comentário público"},
+    )
+    assert criado.status_code == 201
+
+    app.dependency_overrides[current_user] = lambda: {
+        "id": 2,
+        "nome": "Leitor",
+        "email": "leitor@teste.com",
+        "role": "amigo-do-wilson",
+        "permissions": ["listar:comentarios"],
+    }
+
+    todos = client.get("/api/comentarios")
+    assert todos.status_code == 200
+    assert [comentario["id"] for comentario in todos.json()] == [criado.json()["id"]]
+
+    por_filme = client.get("/api/comentarios/550")
+    assert por_filme.status_code == 200
+    assert [comentario["id"] for comentario in por_filme.json()] == [criado.json()["id"]]

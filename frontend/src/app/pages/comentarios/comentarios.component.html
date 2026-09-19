@@ -1,9 +1,9 @@
 <div class="comentarios-container">
   <div class="comentarios-header">
     <div>
-      <h1>💬 Meus Comentários</h1>
+      <h1>💬 Comentários da Comunidade</h1>
       <p class="subtitle">
-        Filmes que você comentou no catálogo
+        Comentários publicados pelos usuários do catálogo
         @if (auth.hasPermission('administrar:sistema')) {
           <span class="badge-role-admin">🛡️ Modo Administrador (Moderação ativa)</span>
         }
@@ -21,12 +21,12 @@
   @if (carregando()) {
     <div class="loading">
       <div class="spinner"></div>
-      <p>Carregando seus comentários...</p>
+      <p>Carregando comentários...</p>
     </div>
   } @else if (grupos().length === 0) {
     <div class="empty">
       <div class="empty-icon">💭</div>
-      <p>Você ainda não comentou em nenhum filme.</p>
+      <p>A comunidade ainda não comentou em nenhum filme.</p>
       <a routerLink="/catalogo" class="btn-primary">Explorar catálogo e comentar</a>
     </div>
   } @else {
@@ -60,7 +60,7 @@
 
           <div class="comments-side">
             <h4 class="section-title">
-              Seus comentários ({{ grupo.comentarios.length }})
+              Comentários ({{ grupo.comentarios.length }})
             </h4>
 
             <div class="comments-list">
@@ -70,7 +70,7 @@
                     <p class="comment-text">{{ c.texto }}</p>
                     <div class="comment-meta">
                       <span class="comment-date">{{ c.criado_em | date:'dd/MM/yyyy HH:mm' }}</span>
-                      @if (auth.hasPermission('apagar:comentario-proprio') || auth.hasPermission('apagar:comentario-de-outro')) {
+                      @if (c.usuario_id === auth.user()?.id || auth.hasPermission('apagar:comentario-de-outro')) {
                         <button
                           type="button"
                           class="btn-delete"
