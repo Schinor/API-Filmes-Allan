@@ -1,11 +1,12 @@
 <div class="comentarios-container">
   <div class="comentarios-header">
     <div>
-      <h1>💬 Comentários da Comunidade</h1>
+      <div class="kicker-tag"><span class="kicker-dot"></span><span>ARQUIVO DA COMUNIDADE</span></div>
+      <h1>Comentários da Comunidade</h1>
       <p class="subtitle">
         Comentários publicados pelos usuários do catálogo
         @if (auth.hasPermission('administrar:sistema')) {
-          <span class="badge-role-admin">🛡️ Modo Administrador (Moderação ativa)</span>
+          <span class="badge-role-admin">Modo Administrador · Moderação ativa</span>
         }
       </p>
     </div>
@@ -13,8 +14,8 @@
   </div>
 
   @if (erro()) {
-    <div class="alert alert-error" style="margin-bottom: 1.5rem; padding: 0.75rem 1rem; border-radius: 8px; background: rgba(229, 9, 20, 0.2); border: 1px solid #e50914; color: #ff6b6b;">
-      ⚠️ {{ erro() }}
+    <div class="alert alert-error">
+      {{ erro() }}
     </div>
   }
 
@@ -25,7 +26,7 @@
     </div>
   } @else if (grupos().length === 0) {
     <div class="empty">
-      <div class="empty-icon">💭</div>
+      <div class="empty-icon">“ ”</div>
       <p>A comunidade ainda não comentou em nenhum filme.</p>
       <a routerLink="/catalogo" class="btn-primary">Explorar catálogo e comentar</a>
     </div>
@@ -47,7 +48,7 @@
                 class="movie-poster"
               />
             } @else {
-              <div class="no-poster">🎬</div>
+              <div class="no-poster">SEM PÔSTER</div>
             }
             <div class="movie-meta">
               <h3 class="movie-title">{{ grupo.filme.titulo }}</h3>
@@ -77,7 +78,7 @@
                           (click)="deletarComentario(c.id, grupo.filme.id)"
                           title="Excluir comentário"
                         >
-                          🗑️ Excluir
+                          Excluir
                         </button>
                       }
                     </div>

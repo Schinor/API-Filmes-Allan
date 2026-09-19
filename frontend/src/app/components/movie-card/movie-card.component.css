@@ -68,3 +68,14 @@
   font-size: 0.75rem;
   color: #aaa;
 }
+
+/* Rota de Fuga */
+.card { border-radius: var(--radius-lg); background: var(--surface-200); border: 1px solid var(--border); box-shadow: var(--shadow-card); transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+.card:hover { transform: translateY(-7px); border-color: var(--accent); box-shadow: 0 16px 35px rgba(0,0,0,.45); }
+.card::after { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--accent); opacity: 0; transition: opacity .2s ease; }
+.card:hover::after { opacity: 1; }
+.no-poster { background: var(--bg-panel); color: var(--paper-muted); font-family: var(--font-display); font-size: 1rem; letter-spacing: 1.5px; }
+.fav-badge { border-radius: var(--radius-full); background: var(--gold-soft); color: var(--gold); border: 1px solid var(--gold); }
+.card-info { background: linear-gradient(transparent, rgba(8,11,9,.98)); }
+.card-info h4 { color: var(--paper); }
+.card-info span { color: var(--paper-muted); font-family: monospace; }

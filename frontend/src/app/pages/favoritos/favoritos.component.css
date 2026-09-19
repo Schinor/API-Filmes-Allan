@@ -149,3 +149,25 @@
 .btn-primary:hover {
   background: #b20710;
 }
+
+/* Rota de Fuga */
+.fav-container { max-width: 1280px; padding: 4rem 1.5rem 6rem; }
+.fav-header { align-items: flex-end; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.kicker-tag { display: flex; align-items: center; gap: .5rem; margin-bottom: .8rem; color: var(--accent); font-family: var(--font-display); font-size: .88rem; letter-spacing: 2px; }
+.kicker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.fav-header h1 { font-family: var(--font-display); font-size: clamp(2.8rem, 5vw, 4.5rem); line-height: .95; letter-spacing: 2px; text-transform: uppercase; }
+.header-copy { margin-top: .7rem; color: var(--paper-muted); font-family: var(--font-serif); }
+.btn-back { color: var(--accent-light); font-family: var(--font-display); letter-spacing: 1.3px; text-transform: uppercase; }
+.count { color: var(--paper-muted); font-family: monospace; }
+.fav-grid { gap: 1.25rem; }
+.fav-card { border-radius: var(--radius-lg); background: var(--surface-200); border: 1px solid var(--border); box-shadow: var(--shadow-card); transition: transform .2s ease, border-color .2s ease; }
+.fav-card:hover { transform: translateY(-6px); border-color: var(--accent); }
+.fav-info { background: var(--bg-panel); border-top: 1px solid var(--border); }
+.fav-info h4 { color: var(--paper); }
+.no-poster { background: var(--bg-panel); color: var(--paper-muted); font-family: var(--font-display); font-size: 1rem; letter-spacing: 1.5px; }
+.btn-remove { border-radius: var(--radius-md); border-color: var(--border-strong); background: transparent; color: var(--ink-muted); font-family: var(--font); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+.btn-remove:hover { border-color: #e50914; color: #ff6b6b; background: rgba(229,9,20,.1); }
+.spinner { border-color: var(--border-strong); border-top-color: var(--accent); }
+.loading p, .empty p { color: var(--paper-muted); }
+.btn-primary { border-radius: var(--radius-md); background: var(--gold); color: var(--surface-100); font-family: var(--font); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+.btn-primary:hover { background: var(--accent-light); }

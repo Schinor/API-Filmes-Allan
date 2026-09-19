@@ -1,108 +1,28 @@
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  height: 60px;
-  background: #0a0a0a;
-  border-bottom: 1px solid #222;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+.navbar { height: 64px; padding: 0 2rem; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2rem; position: sticky; top: 0; z-index: 100; background: rgba(14,18,15,.96); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.navbar-brand { display: flex; flex-direction: column; width: fit-content; cursor: pointer; }
+.brand-title { font-family: var(--font-display); font-size: 1.3rem; line-height: 1; letter-spacing: 2px; text-transform: uppercase; color: var(--paper); }
+.brand-subtitle { margin-top: 3px; font-size: .56rem; letter-spacing: 1.7px; text-transform: uppercase; color: var(--accent); }
+.navbar-links { display: flex; align-items: stretch; align-self: stretch; gap: 1.6rem; }
+.navbar-links a { display: flex; align-items: center; position: relative; font-size: .72rem; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--paper-muted); transition: color .2s ease; }
+.navbar-links a::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: var(--accent); transform: scaleX(0); transition: transform .2s ease; }
+.navbar-links a:hover, .navbar-links a.active { color: var(--paper); }
+.navbar-links a.active::after { transform: scaleX(1); }
+.navbar-user { justify-self: end; display: flex; align-items: center; gap: 1rem; }
+.user-badge-container { display: flex; align-items: center; gap: .6rem; }
+.user-name { color: var(--paper-muted); font-size: .76rem; }
+.user-role-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: var(--radius-full); font-size: .58rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; border: 0; }
+.user-role-badge i { width: 8px; height: 8px; flex: none; border-radius: var(--radius-full); background: currentColor; }
+.badge-admin { background: var(--tier-admin-soft); color: var(--tier-admin); }
+.badge-capitao { background: var(--tier-phillips-soft); color: var(--tier-phillips); }
+.badge-houston { background: var(--tier-apollo-soft); color: var(--tier-apollo); }
+.badge-terminal { background: var(--tier-terminal-soft); color: var(--tier-terminal); }
+.badge-wilson { background: var(--tier-wilson-soft); color: var(--tier-wilson); }
+.btn-logout { padding: .55rem .9rem; border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: transparent; color: var(--paper-muted); font-family: var(--font); font-size: .72rem; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; transition: all .2s ease; }
+.btn-logout:hover { border-color: #e50914; color: #ff6b6b; }
+@media (max-width: 860px) {
+  .navbar { padding: 0 1rem; grid-template-columns: auto 1fr; }
+  .navbar-links { position: fixed; left: 0; right: 0; bottom: 0; height: 56px; justify-content: space-around; gap: .5rem; padding: 0 .5rem; background: var(--bg-panel); border-top: 1px solid var(--border); }
+  .navbar-links a { font-size: .6rem; }
+  .user-name { display: none; }
 }
-
-.navbar-brand {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #e50914;
-}
-
-.navbar-links {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.navbar-links a {
-  color: #b3b3b3;
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.navbar-links a:hover,
-.navbar-links a.active {
-  color: #fff;
-}
-
-.navbar-user {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-badge-container {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.user-name {
-  color: #b3b3b3;
-  font-size: 0.9rem;
-}
-
-.user-role-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.badge-admin {
-  background: #e50914;
-  color: #fff;
-  border: 1px solid #ff4d4d;
-}
-
-.badge-capitao {
-  background: #c9a227;
-  color: #111;
-  border: 1px solid #ffe285;
-}
-
-.badge-houston {
-  background: #3b82f6;
-  color: #fff;
-  border: 1px solid #60a5fa;
-}
-
-.badge-terminal {
-  background: #8b5cf6;
-  color: #fff;
-  border: 1px solid #a78bfa;
-}
-
-.badge-wilson {
-  background: #4b5563;
-  color: #f3f4f6;
-  border: 1px solid #6b7280;
-}
-
-.btn-logout {
-  background: transparent;
-  border: 1px solid #555;
-  color: #b3b3b3;
-  padding: 0.35rem 0.9rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.btn-logout:hover {
-  border-color: #e50914;
-  color: #e50914;
-}
+@media (max-width: 480px) { .user-role-badge { display: none; } }

@@ -233,3 +233,32 @@
     width: 100%;
   }
 }
+
+/* Rota de Fuga */
+.modal-backdrop { background: rgba(8,10,8,.87); backdrop-filter: blur(8px); }
+.modal-content { max-width: 860px; background: var(--surface-200); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: 0 30px 70px rgba(0,0,0,.75); }
+.modal-close { border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--surface-100); color: var(--ink-muted); }
+.modal-close:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.modal-body { gap: 2rem; padding: 2rem; }
+.modal-poster img, .no-poster { border-radius: var(--radius-lg); border: 1px solid var(--border); }
+.no-poster { background: var(--bg-panel); color: var(--paper-muted); }
+.modal-info h2 { font-family: var(--font-display); font-size: 2.5rem; line-height: 1; letter-spacing: 1.7px; text-transform: uppercase; color: var(--paper); }
+.release-date { color: var(--accent-light); font-family: monospace; }
+.sinopse { color: var(--paper-muted); font-family: var(--font-serif); }
+.btn-fav, .btn-comentar { border-radius: var(--radius-md); font-family: var(--font); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+.btn-fav { border: 1px solid var(--accent); color: var(--accent-light); }
+.btn-fav:hover:not(:disabled), .btn-fav.favoritado { border-color: var(--accent); color: var(--bg); background: var(--accent); }
+.comentarios-section { padding-top: 1.25rem; border-top: 1px dashed var(--border-strong); }
+.comentarios-section h3 { font-family: var(--font-display); font-size: 1.25rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--paper); }
+.admin-label { margin-left: .5rem; padding: 2px 6px; border-radius: 2px; border: 1px solid rgba(229,9,20,.45); background: rgba(229,9,20,.12); color: #ff6b6b; font-family: var(--font); font-size: .65rem; font-weight: 600; letter-spacing: .5px; }
+.comment-error { margin-bottom: .6rem; padding: .55rem; border: 1px solid rgba(229,9,20,.3); border-radius: 3px; background: rgba(229,9,20,.12); color: #ff6b6b; font-size: .82rem; }
+.permission-note { margin-bottom: 1rem; padding: .75rem; border: 1px solid var(--border); border-radius: 3px; background: rgba(255,255,255,.025); color: var(--paper-muted); font-size: .82rem; }
+.comentario-form textarea { border-radius: var(--radius-sm); background: var(--surface-400); border-color: var(--border-strong); color: var(--ink); }
+.comentario-form textarea:focus { border-color: var(--accent); }
+.btn-comentar { background: var(--accent); color: var(--bg); }
+.btn-comentar:hover:not(:disabled) { background: var(--accent-light); }
+.comentario-item { border-radius: var(--radius-md); background: var(--surface-100); border-color: var(--border); }
+.comentario-item p { color: var(--paper); }
+.comentario-meta span, .empty-text, .loading-text { color: var(--paper-muted); }
+.btn-del { color: var(--paper-muted); font-family: var(--font-display); letter-spacing: 1px; text-transform: uppercase; }
+.btn-del:hover { color: #ff6b6b; }

@@ -1,6 +1,10 @@
 <div class="fav-container">
   <div class="fav-header">
-    <h1>⭐ Meus Favoritos</h1>
+    <div>
+      <div class="kicker-tag"><span class="kicker-dot"></span><span>COLEÇÃO PARTICULAR</span></div>
+      <h1>Meus Favoritos</h1>
+      <p class="header-copy">Os filmes que você separou para rever e lembrar.</p>
+    </div>
     <a routerLink="/catalogo" class="btn-back">← Voltar ao catálogo</a>
   </div>
 
@@ -25,7 +29,7 @@
               [alt]="fav.titulo"
             />
           } @else {
-            <div class="no-poster">🎬</div>
+            <div class="no-poster">SEM PÔSTER</div>
           }
           <div class="fav-info">
             <h4>{{ fav.titulo }}</h4>
