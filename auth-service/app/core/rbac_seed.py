@@ -18,6 +18,7 @@ PERMISSOES_DEFINICAO = [
     {"action": "gerenciar", "resource": "usuarios", "description": "Alterar dados e papéis de usuários"},
     {"action": "gerenciar", "resource": "papeis", "description": "Criar, alterar e listar papéis do sistema"},
     {"action": "gerenciar", "resource": "permissoes", "description": "Gerenciar matriz de permissões"},
+    {"action": "visualizar", "resource": "logs", "description": "Consultar a trilha de auditoria do sistema"},
     {"action": "administrar", "resource": "sistema", "description": "Permissão exclusiva de administração do sistema"},
 ]
 
@@ -95,6 +96,7 @@ PAPEIS_DEFINICAO = [
             "gerenciar:usuarios",
             "gerenciar:papeis",
             "gerenciar:permissoes",
+            "visualizar:logs",
             "administrar:sistema",
         ],
     },

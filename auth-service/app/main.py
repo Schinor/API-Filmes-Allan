@@ -7,6 +7,9 @@ if BASE_DIR not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from prometheus_client import CollectorRegistry
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text, inspect
 from app.core.database import Base, engine, SessionLocal
 import app.models  # força o registro dos models no metadata
@@ -69,11 +72,20 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "auth-service",
-        "version": "2.0.0",
-    }
+    """Readiness: só responde 200 se o banco de dados estiver acessível."""
+    info = {"service": "auth-service", "version": "2.0.0"}
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "down", **info})
+    return {"status": "healthy", "db": "up", **info}
+
+
+# Registry próprio evita colisão de métricas quando mais de um app é importado no mesmo processo
+Instrumentator(registry=CollectorRegistry(), excluded_handlers=["/metrics", "/health"]).instrument(app).expose(
+    app, include_in_schema=False
+)
 
 
 # Rotas

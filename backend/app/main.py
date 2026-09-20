@@ -8,7 +8,10 @@ if BASE_DIR not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from prometheus_client import CollectorRegistry
+from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
 
 from app.core.database import Base, engine
 import app.models  # noqa: F401 — força o registro dos models no metadata
@@ -17,6 +20,7 @@ from app.routes.auth import router as auth_router
 from app.routes.filmes import router as filmes_router
 from app.routes.favoritos import router as favoritos_router
 from app.routes.comentarios import router as comentarios_router
+from app.routes.logs import router as logs_router
 
 # Cria as tabelas (idempotente se já existirem)
 Base.metadata.create_all(bind=engine)
@@ -41,6 +45,26 @@ app.include_router(auth_router)
 app.include_router(filmes_router)
 app.include_router(favoritos_router)
 app.include_router(comentarios_router)
+app.include_router(logs_router)
+
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    """Readiness: só responde 200 se o banco de dados estiver acessível."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "down"})
+    return {"status": "healthy", "db": "up"}
+
+
+# Registry próprio evita colisão de métricas quando mais de um app é importado no mesmo processo.
+# Registrado antes do fallback da SPA para que /metrics não caia no index.html.
+Instrumentator(registry=CollectorRegistry(), excluded_handlers=["/metrics", "/health"]).instrument(app).expose(
+    app, include_in_schema=False
+)
 
 # Serve o frontend Angular (SPA fallback para suporte a HTML5 pushState routing)
 STATIC_DIR = os.path.join(BASE_DIR, "static")

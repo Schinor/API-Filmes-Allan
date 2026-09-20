@@ -1,6 +1,7 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from app.clients import log_client
 from app.core.database import get_db
 from app.dependencies import current_user, require_permission
 from app.models.comentario import Comentario
@@ -32,16 +33,29 @@ async def listar_comentarios(
 @router.post("", response_model=ComentarioOut, status_code=status.HTTP_201_CREATED)
 async def comentar(
     payload: ComentarioCreate,
+    request: Request,
+    background: BackgroundTasks,
     user: dict = Depends(require_permission("criar:comentarios")),
     db: Session = Depends(get_db),
 ):
     """Cria um comentário do usuário logado para um filme — requer 'criar:comentarios'."""
-    return comentario_repo.create(db, user["id"], payload.tmdb_movie_id, payload.texto)
+    comentario = comentario_repo.create(db, user["id"], payload.tmdb_movie_id, payload.texto)
+    background.add_task(
+        log_client.registrar,
+        "comentar",
+        request,
+        usuario_id=user["id"],
+        recurso=f"filme:{payload.tmdb_movie_id}",
+        detalhes=f"comentario:{comentario.id}",
+    )
+    return comentario
 
 
 @router.delete("/{comentario_id}")
 async def deletar_comentario(
     comentario_id: int,
+    request: Request,
+    background: BackgroundTasks,
     user: dict = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -66,6 +80,14 @@ async def deletar_comentario(
     )
 
     if not (pode_apagar_proprio or pode_moderar):
+        # Await direto: BackgroundTasks se perde quando a rota levanta exceção
+        await log_client.registrar(
+            "acesso_negado",
+            request,
+            usuario_id=user["id"],
+            recurso=f"comentario:{comentario_id}",
+            detalhes=f"{request.method} {request.url.path}",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Apenas o autor ou um administrador podem remover este comentário",
@@ -73,4 +95,12 @@ async def deletar_comentario(
 
     db.delete(comentario)
     db.commit()
+    background.add_task(
+        log_client.registrar,
+        "apagar_comentario",
+        request,
+        usuario_id=user["id"],
+        recurso=f"comentario:{comentario_id}",
+        detalhes="autor" if e_dono else "moderacao",
+    )
     return {"detail": "Comentário removido"}

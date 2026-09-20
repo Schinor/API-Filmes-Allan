@@ -1,6 +1,7 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from app.clients import log_client
 from app.core.database import get_db
 from app.dependencies import require_permission
 from app.repositories import favorito_repo
@@ -21,6 +22,8 @@ async def listar_favoritos(
 @router.post("", response_model=FavoritoOut, status_code=status.HTTP_201_CREATED)
 async def favoritar(
     payload: FavoritoCreate,
+    request: Request,
+    background: BackgroundTasks,
     user: dict = Depends(require_permission("adicionar:favoritos")),
     db: Session = Depends(get_db),
 ):
@@ -34,6 +37,13 @@ async def favoritar(
     )
     if fav is None:
         raise HTTPException(status_code=409, detail="Filme já está nos favoritos")
+    background.add_task(
+        log_client.registrar,
+        "favoritar",
+        request,
+        usuario_id=user["id"],
+        recurso=f"filme:{payload.tmdb_movie_id}",
+    )
     return fav
 
 

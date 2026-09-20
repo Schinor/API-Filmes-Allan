@@ -228,3 +228,208 @@ def test_listar_comentarios_exibe_publicacoes_de_outros_usuarios():
     por_filme = client.get("/api/comentarios/550")
     assert por_filme.status_code == 200
     assert [comentario["id"] for comentario in por_filme.json()] == [criado.json()["id"]]
+
+
+# ── Auditoria (log-service), /api/logs, logout, health e métricas ─────────────
+
+def _usuario(uid, role, permissions):
+    return {"id": uid, "nome": f"User {uid}", "email": f"u{uid}@teste.com", "role": role, "permissions": permissions}
+
+
+def _capturar_eventos(monkeypatch):
+    """Troca o cliente do log-service por um coletor em memória (chamar após setup_catalogo_app)."""
+    from app.clients import log_client
+
+    eventos = []
+
+    async def fake_registrar(acao, request=None, usuario_id=None, recurso=None, detalhes=None):
+        eventos.append({"acao": acao, "usuario_id": usuario_id, "recurso": recurso, "detalhes": detalhes})
+
+    monkeypatch.setattr(log_client, "registrar", fake_registrar)
+    return eventos
+
+
+def _mock_log_service(monkeypatch, handler):
+    import httpx
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.routes.logs.httpx.AsyncClient",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+
+
+def test_health_e_metrics_do_catalogo():
+    app, _, _, TestClient = setup_catalogo_app()
+    client = TestClient(app)
+
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json() == {"status": "healthy", "db": "up"}
+
+    client.get("/api/docs")
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+    assert "http_requests_total" in metrics.text
+    assert "http_request_duration_seconds" in metrics.text
+
+
+def test_health_retorna_503_quando_banco_cai(monkeypatch):
+    app, _, _, TestClient = setup_catalogo_app()
+    import app.main as main_mod
+
+    class BancoFora:
+        def connect(self):
+            raise RuntimeError("banco indisponível")
+
+    monkeypatch.setattr(main_mod, "engine", BancoFora())
+    resp = TestClient(app).get("/health")
+    assert resp.status_code == 503
+    assert resp.json()["status"] == "unhealthy"
+
+
+def test_api_logs_usuario_comum_recebe_403_e_gera_acesso_negado(monkeypatch):
+    app, _, current_user, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+
+    app.dependency_overrides[current_user] = lambda: _usuario(
+        7, "houston-temos-acesso", ["listar:favoritos", "criar:comentarios"]
+    )
+
+    resp = client.get("/api/logs")
+    assert resp.status_code == 403
+    assert eventos == [
+        {"acao": "acesso_negado", "usuario_id": 7, "recurso": "visualizar:logs", "detalhes": "GET /api/logs"}
+    ]
+
+
+def test_api_logs_admin_lista_eventos_do_log_service(monkeypatch):
+    import httpx
+
+    app, _, current_user, TestClient = setup_catalogo_app()
+    chamadas = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(request)
+        return httpx.Response(200, json=[{"id": "2-0", "acao": "logout"}, {"id": "1-0", "acao": "login"}])
+
+    _mock_log_service(monkeypatch, handler)
+    app.dependency_overrides[current_user] = lambda: _usuario(1, "admin", ["visualizar:logs"])
+
+    resp = TestClient(app).get("/api/logs?limit=20")
+    assert resp.status_code == 200
+    assert [e["acao"] for e in resp.json()] == ["logout", "login"]
+    assert chamadas[0].url.params["limit"] == "20"
+    assert "x-internal-token" in chamadas[0].headers
+
+
+def test_api_logs_retorna_503_se_log_service_estiver_fora(monkeypatch):
+    import httpx
+
+    app, _, current_user, TestClient = setup_catalogo_app()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("sem rota", request=request)
+
+    _mock_log_service(monkeypatch, handler)
+    app.dependency_overrides[current_user] = lambda: _usuario(1, "admin", ["administrar:sistema"])
+
+    resp = TestClient(app).get("/api/logs")
+    assert resp.status_code == 503
+
+
+def test_favoritar_e_comentar_emitem_eventos(monkeypatch):
+    app, _, current_user, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+    app.dependency_overrides[current_user] = lambda: _usuario(
+        3, "houston-temos-acesso", ["adicionar:favoritos", "criar:comentarios", "apagar:comentario-proprio"]
+    )
+
+    assert client.post(
+        "/api/favoritos", json={"tmdb_movie_id": 13, "titulo": "Forrest Gump", "poster_path": "/fg.jpg"}
+    ).status_code == 201
+    com = client.post("/api/comentarios", json={"tmdb_movie_id": 13, "texto": "Clássico"})
+    assert com.status_code == 201
+    assert client.delete(f"/api/comentarios/{com.json()['id']}").status_code == 200
+
+    assert [(e["acao"], e["usuario_id"]) for e in eventos] == [
+        ("favoritar", 3),
+        ("comentar", 3),
+        ("apagar_comentario", 3),
+    ]
+    assert eventos[0]["recurso"] == "filme:13"
+    assert eventos[2]["detalhes"] == "autor"
+
+
+def test_apagar_comentario_de_outro_registra_moderacao_e_negacao(monkeypatch):
+    app, _, current_user, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+
+    app.dependency_overrides[current_user] = lambda: _usuario(1, "houston-temos-acesso", ["criar:comentarios"])
+    cid = client.post("/api/comentarios", json={"tmdb_movie_id": 5, "texto": "meu"}).json()["id"]
+
+    # Outro usuário comum tenta apagar: 403 + acesso_negado
+    app.dependency_overrides[current_user] = lambda: _usuario(2, "houston-temos-acesso", ["apagar:comentario-proprio"])
+    assert client.delete(f"/api/comentarios/{cid}").status_code == 403
+    assert eventos[-1]["acao"] == "acesso_negado"
+    assert eventos[-1]["usuario_id"] == 2
+    assert eventos[-1]["recurso"] == f"comentario:{cid}"
+
+    # Moderador apaga: apagar_comentario com detalhe "moderacao"
+    app.dependency_overrides[current_user] = lambda: _usuario(9, "admin", ["apagar:comentario-de-outro"])
+    assert client.delete(f"/api/comentarios/{cid}").status_code == 200
+    assert eventos[-1]["acao"] == "apagar_comentario"
+    assert eventos[-1]["detalhes"] == "moderacao"
+
+
+def test_login_e_login_falhou_geram_eventos(monkeypatch):
+    from fastapi import HTTPException
+
+    app, _, _, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+
+    async def login_ok(method, path, **kw):
+        return {"access_token": "t", "token_type": "bearer", "user": {"id": 42, "nome": "A", "email": "a@a.com"}}
+
+    monkeypatch.setattr("app.routes.auth.forward_request", login_ok)
+    assert client.post("/api/auth/login", data={"username": "a@a.com", "password": "x"}).status_code == 200
+    assert eventos[-1]["acao"] == "login"
+    assert eventos[-1]["usuario_id"] == 42
+
+    async def login_401(method, path, **kw):
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+
+    monkeypatch.setattr("app.routes.auth.forward_request", login_401)
+    assert client.post("/api/auth/login", data={"username": "b@b.com", "password": "x"}).status_code == 401
+    assert eventos[-1]["acao"] == "login_falhou"
+    assert eventos[-1]["usuario_id"] is None
+    assert eventos[-1]["detalhes"] == "email:b@b.com"
+
+
+def test_logout_exige_jwt_e_registra_evento(monkeypatch):
+    app, _, current_user, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+
+    assert client.post("/api/auth/logout").status_code == 401
+    assert eventos == []
+
+    app.dependency_overrides[current_user] = lambda: _usuario(5, "admin", ["administrar:sistema"])
+    resp = client.post("/api/auth/logout")
+    assert resp.status_code == 204
+    assert eventos == [{"acao": "logout", "usuario_id": 5, "recurso": None, "detalhes": None}]
+
+
+def test_cliente_de_log_nunca_levanta_excecao_com_log_service_fora():
+    import asyncio
+
+    setup_catalogo_app()
+    from app.clients import log_client
+    from app.core.config import settings
+
+    settings.LOG_SERVICE_URL = "http://127.0.0.1:9"  # porta fechada
+    asyncio.run(log_client.registrar("teste"))  # não deve levantar

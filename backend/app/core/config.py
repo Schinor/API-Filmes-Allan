@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     PORT: int = 8000
     AUTH_SERVICE_URL: str = "http://auth-service:8001"
+    LOG_SERVICE_URL: str = "http://log-service:8002"
+    LOG_INTERNAL_TOKEN: str = ""
 
     model_config = SettingsConfigDict(env_file=(".env", "../.env", "../../.env"), extra="ignore")
 

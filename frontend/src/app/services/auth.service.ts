@@ -104,7 +104,7 @@ export class AuthService {
       },
       error: () => {
         // Se o token estiver expirado ou inválido, limpa a sessão
-        this.logout();
+        this.limparSessao();
       },
     });
   }
@@ -126,7 +126,19 @@ export class AuthService {
     });
   }
 
+  /** Avisa o servidor (trilha de auditoria) e limpa a sessão local, mesmo que o aviso falhe. */
   logout(): void {
+    const token = this._token();
+    if (token) {
+      this.http
+        .post<void>('/api/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } })
+        .subscribe({ error: () => {} });
+    }
+    this.limparSessao();
+  }
+
+  /** Limpa somente o estado local (usado quando o servidor já rejeitou o token). */
+  limparSessao(): void {
     this._token.set(null);
     this._user.set(null);
     localStorage.removeItem(this.TOKEN_KEY);

@@ -20,7 +20,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: HttpErrorResponse) => {
       // Se a resposta for 401 em uma rota protegida (não na rota de login/cadastro), limpa a sessão
       if (error.status === 401 && !req.url.includes('/api/auth/login') && !req.url.includes('/api/auth/cadastro')) {
-        auth.logout();
+        auth.limparSessao();
         router.navigate(['/login']);
       }
       return throwError(() => error);

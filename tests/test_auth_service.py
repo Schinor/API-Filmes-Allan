@@ -77,7 +77,8 @@ def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
+    assert data["status"] == "healthy"
+    assert data["db"] == "up"
     assert data["service"] == "auth-service"
 
 
@@ -375,3 +376,27 @@ def test_email_escapa_html_no_nome_do_usuario(monkeypatch):
     corpo = html_parte.get_payload(decode=True).decode("utf-8")
     assert "&lt;script&gt;" in corpo
     assert "<script>" not in corpo
+
+
+def test_permissao_visualizar_logs_somente_no_papel_admin():
+    from app.core.rbac_seed import PAPEIS_DEFINICAO, PERMISSOES_DEFINICAO
+
+    assert {"action": "visualizar", "resource": "logs"}.items() <= next(
+        p for p in PERMISSOES_DEFINICAO if p["resource"] == "logs"
+    ).items()
+
+    com_permissao = [p["slug"] for p in PAPEIS_DEFINICAO if "visualizar:logs" in p["permissoes"]]
+    assert com_permissao == ["admin"]
+
+    # O seed grava a permissão no banco e um usuário comum não a recebe no cadastro
+    db = TestingSessionLocal()
+    from app.models.permissao import Permissao
+
+    assert db.query(Permissao).filter_by(action="visualizar", resource="logs").count() == 1
+    db.close()
+
+    resp = client.post(
+        "/cadastro",
+        json={"nome": "Comum", "email": "comum-logs@exemplo.com", "senha": "password123", "role": "capitao-hanks"},
+    )
+    assert "visualizar:logs" not in resp.json()["permissions"]

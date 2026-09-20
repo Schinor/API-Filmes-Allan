@@ -1,7 +1,9 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from app.clients import log_client
 from app.clients.auth_client import forward_request
+from app.dependencies import current_user
 from app.schemas.usuario import (
     UsuarioCreate,
     UsuarioOut,
@@ -27,12 +29,45 @@ async def cadastro(payload: UsuarioCreate):
 
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    return await forward_request(
-        "POST",
-        "/login",
-        data={"username": form_data.username, "password": form_data.password},
+async def login(
+    request: Request,
+    background: BackgroundTasks,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+):
+    try:
+        resposta = await forward_request(
+            "POST",
+            "/login",
+            data={"username": form_data.username, "password": form_data.password},
+        )
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            # Await direto: BackgroundTasks se perde quando a rota levanta exceção
+            await log_client.registrar(
+                "login_falhou",
+                request,
+                detalhes=f"email:{form_data.username[:150]}",
+            )
+        raise
+
+    background.add_task(
+        log_client.registrar,
+        "login",
+        request,
+        usuario_id=(resposta.get("user") or {}).get("id"),
     )
+    return resposta
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    request: Request,
+    background: BackgroundTasks,
+    user: dict = Depends(current_user),
+):
+    """Registra o logout na trilha de auditoria. O JWT é stateless, então nada é invalidado."""
+    background.add_task(log_client.registrar, "logout", request, usuario_id=user["id"])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UsuarioOut)

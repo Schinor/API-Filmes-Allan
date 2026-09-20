@@ -1,0 +1,31 @@
+from typing import Any, Dict, List
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from app.core.config import settings
+from app.dependencies import require_permission
+
+router = APIRouter(prefix="/api/logs", tags=["logs"])
+
+
+@router.get("")
+async def listar_logs(
+    limit: int = Query(50, ge=1, le=500),
+    _user: dict = Depends(require_permission("visualizar:logs")),
+) -> List[Dict[str, Any]]:
+    """Trilha de auditoria (mais recentes primeiro) — requer 'visualizar:logs'."""
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get(
+                f"{settings.LOG_SERVICE_URL.rstrip('/')}/eventos",
+                params={"limit": limit},
+                headers={"X-Internal-Token": settings.LOG_INTERNAL_TOKEN},
+            )
+        resp.raise_for_status()
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Serviço de auditoria indisponível",
+        )
+    return resp.json()
