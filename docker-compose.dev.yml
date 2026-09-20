@@ -1,5 +1,5 @@
 # docker-compose.dev.yml — Desenvolvimento Local
-# Usa os Dockerfiles locais em vez das imagens publicadas no Hub.
+# Usa os Dockerfiles locais em vez das imagens publicadas no GHCR.
 # NUNCA use este arquivo em produção.
 #
 # Como usar:
@@ -25,8 +25,19 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
       - PORT=8000
       - AUTH_SERVICE_URL=http://auth-service-dev:8001
+      - LOG_SERVICE_URL=http://log-service:8002
+      - LOG_INTERNAL_TOKEN=${LOG_INTERNAL_TOKEN}
     depends_on:
-      - auth-service
+      auth-service:
+        condition: service_healthy
+      log-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -58,6 +69,12 @@ services:
       - RESET_REQUEST_LIMIT=${RESET_REQUEST_LIMIT:-3}
       - RESET_REQUEST_WINDOW_MINUTES=${RESET_REQUEST_WINDOW_MINUTES:-15}
       - EMAIL_LOG_LINK_WITHOUT_SMTP=${EMAIL_LOG_LINK_WITHOUT_SMTP:-false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -65,6 +82,79 @@ services:
       - filmes-network-dev
     restart: unless-stopped
 
+  log-service:
+    build:
+      context: ./log-service
+      dockerfile: Dockerfile
+    container_name: log-service-dev
+    expose:
+      - "8002"                # Sem "ports:" — não é publicado no host
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_INTERNAL_TOKEN=${LOG_INTERNAL_TOKEN}
+      - PORT=8002
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    # Sem "ports:" — só o log-service acessa o Redis, pela rede interna
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - catalogo
+      - auth-service
+      - log-service
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
 networks:
   filmes-network-dev:
     driver: bridge
+
+volumes:
+  redis-data:
+  grafana-data:

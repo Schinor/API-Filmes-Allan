@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: catalogo
+    static_configs:
+      - targets: ["catalogo:8000"]
+  - job_name: auth-service
+    static_configs:
+      - targets: ["auth-service:8001"]
+  - job_name: log-service
+    static_configs:
+      - targets: ["log-service:8002"]
