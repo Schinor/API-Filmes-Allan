@@ -1,0 +1,75 @@
+# docker-compose.ci.yml — stack descartável usada pelo pipeline (GitHub Actions).
+# Sobe tudo do zero, sem depender de nenhum serviço externo: o banco de produção (MySQL) é
+# hospedado na infra, então aqui cada serviço usa um SQLite descartável dentro do container.
+# Os valores CI_* são gerados em tempo de execução pelo workflow; nada aqui é segredo real.
+#
+# Uso local:
+#   export CI_SECRET_KEY=y CI_LOG_TOKEN=z
+#   docker compose -f docker-compose.ci.yml up -d --build --wait
+#   docker compose -f docker-compose.ci.yml down -v
+
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    build: ./auth-service
+    environment:
+      DATABASE_URL: sqlite:////tmp/auth.db
+      SECRET_KEY: ${CI_SECRET_KEY}
+      ALGORITHM: HS256
+      PORT: "8001"
+      EMAIL_LOG_LINK_WITHOUT_SMTP: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  log-service:
+    build: ./log-service
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LOG_INTERNAL_TOKEN: ${CI_LOG_TOKEN}
+      PORT: "8002"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  catalogo:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:////tmp/catalogo.db
+      SECRET_KEY: ${CI_SECRET_KEY}
+      ALGORITHM: HS256
+      PORT: "8000"
+      TMDB_BASE_URL: https://api.themoviedb.org/3
+      TMDB_API_KEY: ci-dummy
+      AUTH_SERVICE_URL: http://auth-service:8001
+      LOG_SERVICE_URL: http://log-service:8002
+      LOG_INTERNAL_TOKEN: ${CI_LOG_TOKEN}
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      log-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
