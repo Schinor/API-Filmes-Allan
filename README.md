@@ -179,7 +179,7 @@ MAILTRAP_PASSWORD=sua_senha_mailtrap
 # Exige domínio verificado no Mailtrap (SPF/DKIM). Troque as linhas acima por:
 # MAILTRAP_HOST=live.smtp.mailtrap.io
 # MAILTRAP_PORT=587
-# MAILTRAP_USERNAME=api
+# MAILTRAP_USERNAME=apismtp@mailtrap.io   (conforme exibido no painel do domínio)
 # MAILTRAP_PASSWORD=token_de_api_do_mailtrap
 #
 # O remetente precisa pertencer ao domínio verificado (em produção).
@@ -197,6 +197,14 @@ RESET_REQUEST_WINDOW_MINUTES=15
 # Somente dev: sem credenciais SMTP, registra o link no log do auth-service
 # em vez de falhar. Mantenha false em produção.
 EMAIL_LOG_LINK_WITHOUT_SMTP=false
+
+# Auditoria (log-service) — token compartilhado entre catálogo e log-service
+# Gere com: openssl rand -hex 32
+LOG_INTERNAL_TOKEN=token_interno_do_log_service
+
+# Observabilidade (Grafana) e tag das imagens
+GRAFANA_ADMIN_PASSWORD=senha_do_admin_do_grafana
+IMAGE_TAG=latest
 ```
 
 ---
@@ -232,7 +240,146 @@ docker compose up --build
    - `MAILTRAP_HOST`, `MAILTRAP_PORT`, `MAILTRAP_USERNAME`, `MAILTRAP_PASSWORD`: credenciais SMTP (Sandbox para testes, Email Sending para entrega real)
    - `MAILTRAP_FROM_EMAIL`: remetente do domínio verificado no Mailtrap
    - `CATALOGO_URL`: URL pública do catálogo (usada no link do e-mail)
-5. Clique em **Deploy the stack**. O Portainer fará o build do `catalogo` e do `auth-service` e subirá a stack conectada na rede privada.
+   - `LOG_INTERNAL_TOKEN`: token compartilhado entre o catálogo e o log-service
+   - `GRAFANA_ADMIN_PASSWORD`: senha do admin do Grafana
+   - `IMAGE_TAG` *(opcional)*: tag das imagens do GHCR (`latest` por padrão; use `sha-<commit>` para fixar uma versão)
+   - `GRAFANA_PORT` / `PROMETHEUS_PORT` *(opcional)*: portas do host, se as padrões (3000 e 9090) estiverem ocupadas
+5. Clique em **Deploy the stack**. O Portainer baixa as imagens `ghcr.io/schinor/*` (catálogo, auth-service e log-service), sobe o Redis, o Prometheus e o Grafana e conecta tudo na rede privada.
+
+> As imagens do GHCR nascem **privadas**. Torne os pacotes públicos ou cadastre no Portainer um registry `ghcr.io` com um Personal Access Token de escopo `read:packages` (o token fica no Portainer, nunca no repositório).
+> Os arquivos `prometheus.yml` e `grafana/` são montados por caminho relativo, então a stack precisa ser criada a partir do **repositório** com a opção de *relative path volumes* do Portainer habilitada.
+
+---
+
+## 🧾 Auditoria: log-service + Redis Streams
+
+Terceiro microsserviço da stack. Ele recebe eventos de auditoria do catálogo e os grava em um **Redis Stream** (`audit:events`).
+
+```
+Navegador → catalogo (:8000) ──POST /eventos──┐
+                │                             ▼
+                ├─ auth-service ──────►  log-service (expose 8002) ──XADD──► Redis
+                │                             ▲
+Admin → GET /api/logs (catalogo, exige RBAC) ─┘ GET /eventos
+```
+
+- O navegador **nunca** fala com o log-service, só com o catálogo (mesmo padrão *bridge* do `/api/auth/*`).
+- O log-service é o único que fala com o Redis. Nem ele nem o Redis publicam porta no host.
+- A comunicação interna usa o cabeçalho `X-Internal-Token` (`LOG_INTERNAL_TOKEN`), comparado em tempo constante.
+- **Auditoria não derruba funcionalidade:** se o log-service cair, favoritar e comentar continuam funcionando (o cliente usa timeout de 1,5 s e só registra um warning).
+
+### Por que Redis Streams?
+
+- **Ordenação e ID nativos:** cada `XADD` gera um ID `<timestamp-ms>-<seq>` monotônico, então a ordem cronológica vem de graça, sem coluna de data nem índice.
+- **Leitura dos últimos N eventos** com uma única chamada: `XREVRANGE audit:events + - COUNT N` (mais recentes primeiro).
+- **Escrita append-only barata**, ideal para trilha de auditoria, com limite de tamanho (`MAXLEN ~ 100000`) para o stream não crescer sem fim.
+- Persistência via AOF (`--appendonly yes`) e volume Docker `redis-data`.
+
+### Eventos registrados
+
+| Evento (`acao`) | Onde nasce | Campos extras |
+|---|---|---|
+| `login` | proxy `POST /api/auth/login` (200) | `usuario_id` |
+| `login_falhou` | proxy `POST /api/auth/login` (401) | `detalhes=email:<tentado>` |
+| `logout` | `POST /api/auth/logout` (chamado pelo Angular ao clicar em *Sair*) | `usuario_id` |
+| `favoritar` | `POST /api/favoritos` | `recurso=filme:<id>` |
+| `comentar` | `POST /api/comentarios` | `recurso=filme:<id>`, `detalhes=comentario:<id>` |
+| `apagar_comentario` | `DELETE /api/comentarios/{id}` | `detalhes=autor` ou `moderacao` |
+| `acesso_negado` | `require_permission` e ramo 403 do `DELETE` de comentário | `recurso=<permissão>`, `detalhes=<método> <rota>` |
+
+Todo evento carrega `usuario_id` (quando há), `acao`, `origem`, `timestamp` (UTC, ISO 8601) e `ip`.
+
+### Consulta (somente admin)
+
+`GET /api/logs?limit=50` exige a permissão `visualizar:logs`, atribuída **somente** ao papel `admin`. Usuário comum recebe **403** (e isso gera um evento `acesso_negado`). As permissões vão dentro do JWT: depois de a permissão nova entrar no seed, o admin precisa fazer **login de novo**.
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN_ADMIN" "http://localhost:8000/api/logs?limit=20"
+```
+
+**Saída real de uma execução local** (stack de CI, do mais recente para o mais antigo):
+
+```
+login          uid=2  (admin)
+logout         uid=1
+acesso_negado  uid=1  visualizar:logs  GET /api/logs
+comentar       uid=1  filme:13         comentario:1
+favoritar      uid=1  filme:13
+login          uid=1
+login_falhou   -      email:naoexiste@teste.com
+```
+
+> 📸 **Print da consulta como admin:** _pendente — anexar aqui (pasta `assets/`)._
+
+---
+
+## 📈 Observabilidade: health checks e métricas
+
+### `/health` com readiness real
+
+| Serviço | Dependência testada | Falha |
+|---|---|---|
+| catalogo | MariaDB (`SELECT 1`) | `503 {"status":"unhealthy","db":"down"}` |
+| auth-service | MariaDB (`SELECT 1`) | `503 {"status":"unhealthy","db":"down",...}` |
+| log-service | Redis (`PING`) | `503 {"status":"unhealthy","redis":"down"}` |
+
+Cada serviço tem `healthcheck` no compose (Python `urllib`, já que as imagens `slim` não têm `curl`), e o `depends_on` usa `condition: service_healthy`. Com o Redis parado, o log-service passa a `(unhealthy)` sozinho (~30 s no compose de produção).
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}"
+docker stop <container-redis>       # após ~30-40 s: log-service (unhealthy)
+docker start <container-redis>      # volta a (healthy)
+```
+
+> 📸 **Prints:** _pendentes — `docker ps` com tudo `(healthy)`, `docker ps` com o log-service `(unhealthy)` e `/metrics` ou painel do Grafana._
+
+### `/metrics` (Prometheus)
+
+Os três serviços expõem `/metrics` via `prometheus-fastapi-instrumentator` (`http_requests_total` por rota/status e `http_request_duration_seconds`). `/health` e `/metrics` ficam fora da contagem.
+
+> ⚠️ O catálogo tem a porta pública, então `/metrics` fica acessível por ela. Em produção real, bloqueie a rota no proxy de borda e deixe só o Prometheus raspar pela rede interna.
+
+### Prometheus + Grafana (bônus)
+
+- Prometheus: `http://localhost:9090` (`prometheus.yml` raspa `catalogo:8000`, `auth-service:8001`, `log-service:8002`; em `/targets` os três devem estar `UP`).
+- Grafana: `http://localhost:3000` (usuário `admin`, senha em `GRAFANA_ADMIN_PASSWORD`). A fonte de dados e o painel **HANKS+ — Serviços** (requisições/min, erros 4xx/5xx e latência p95) já vêm provisionados em `grafana/`.
+
+---
+
+## 🚀 CI/CD com GitHub Actions
+
+```
+git push → GitHub Actions (build + teste) → imagens no GHCR (sha-<commit> + latest) → Portainer puxa → no ar
+```
+
+Workflow: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
+
+1. **`test`** (em todo push e PR): roda o `pytest` (suíte completa), sobe a stack completa de [`docker-compose.ci.yml`](docker-compose.ci.yml) com Redis e SQLite descartáveis (o MySQL de produção é da infra, não roda no CI) e `--wait` (só segue se **todos** os serviços ficarem `healthy`), e então falha o pipeline se: `/health` do catálogo não responder 200, o login de um usuário inexistente não devolver 401 (prova que catálogo → auth-service → banco conversam) ou `/metrics` não expuser métricas.
+2. **`publish`** (só em push para `main`, e só se `test` passou): constrói as três imagens e publica no **GHCR** com duas tags: `sha-<7 primeiros caracteres do commit>` (rastreável até o commit) e `latest`.
+
+| Imagem | Origem |
+|---|---|
+| `ghcr.io/schinor/catalogo-filmes` | `Dockerfile` (raiz) |
+| `ghcr.io/schinor/auth-service` | `auth-service/Dockerfile` |
+| `ghcr.io/schinor/log-service` | `log-service/Dockerfile` |
+
+### Como os segredos são fornecidos (sem revelar valores)
+
+- **Nada de segredo no YAML, no Dockerfile ou na imagem.**
+- **No CI:** o workflow gera valores descartáveis em tempo de execução (`openssl rand`) para o JWT e o token do log-service. O login no GHCR usa o `GITHUB_TOKEN` automático.
+- **Em produção:** `DATABASE_URL`, `SECRET_KEY`, `TMDB_API_KEY`, `LOG_INTERNAL_TOKEN`, credenciais do Mailtrap e `GRAFANA_ADMIN_PASSWORD` são cadastradas como *Environment variables* da stack no **Portainer**. Localmente ficam no `.env` (fora do Git).
+
+### Deploy
+
+O `docker-compose.yml` referencia `ghcr.io/schinor/<serviço>:${IMAGE_TAG:-latest}`. Para o deploy automático, crie a stack no Portainer a partir do repositório e ligue *Automatic updates* (polling ou webhook). Para fixar uma versão específica, defina `IMAGE_TAG=sha-<commit>` na stack.
+
+> 🔗 **Execução verde do workflow:** _pendente — colar aqui o link da aba Actions._
+> 📸 **Container rodando com a tag do commit** (`docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"`): _pendente._
+
+### Pendências
+
+- Prints e link da execução do workflow acima (dependem do primeiro push e do deploy real).
+- O deploy é "puxar e recriar" pelo Portainer; se a atualização automática não estiver habilitada, o passo final é manual (*Pull and redeploy*).
 
 ---
 
@@ -370,6 +517,8 @@ Cobertura dos testes:
   - Usuário admin removendo comentário de qualquer usuário (moderação) ➔ **200 OK**.
   - Tentativa de remoção de comentário inexistente ➔ **404 Not Found**.
 - Roteamento e proteção das rotas do Catálogo.
+- **Auditoria:** `log-service` (401 sem token, 202 com token, ordem do mais recente ao mais antigo, `/health` refletindo o Redis, via `fakeredis`), `/api/logs` (403 para comum, 200 para admin, 503 com log-service fora), emissão dos eventos (`login`, `login_falhou`, `logout`, `favoritar`, `comentar`, `apagar_comentario`, `acesso_negado`) e garantia de que a falha do log-service não quebra a funcionalidade.
+- **Observabilidade:** `/health` (200 e 503) e `/metrics` do catálogo, do auth-service e do log-service.
 
 ---
 

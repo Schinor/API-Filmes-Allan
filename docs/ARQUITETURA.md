@@ -7,14 +7,16 @@ Documento que descreve a arquitetura **atual** do projeto, com base no código-f
 
 O sistema é uma aplicação web para navegar pelo catálogo de filmes de Tom Hanks
 (dados do TMDB), com favoritos, comentários e controle de acesso por papéis (RBAC).
-Está dividido em **dois containers** (microsserviços) que compartilham o mesmo banco
+Está dividido em **três containers de aplicação** (microsserviços), mais o Redis, e o Prometheus/Grafana opcionais que compartilham o mesmo banco
 MariaDB/MySQL e a mesma `SECRET_KEY` de JWT:
 
 | Componente | Tecnologia | Responsabilidade |
 |---|---|---|
 | **catalogo** | FastAPI (Python 3.12) + SPA Angular 21 servida como estáticos | Único ponto de entrada público (porta 8000). Filmes (TMDB), favoritos, comentários e *bridge* para autenticação |
 | **auth-service** | FastAPI (Python 3.12) | Cadastro, login (JWT), RBAC, usuários, recuperação de senha. Só acessível pela rede interna Docker (`expose 8001`) |
-| **Banco de dados** | MariaDB / MySQL externo | Tabelas de ambos os serviços |
+| **log-service** | FastAPI (Python 3.12) | Trilha de auditoria: recebe eventos do catálogo e os grava em um Redis Stream. Só acessível pela rede interna (`expose 8002`) |
+| **Redis** | Redis 7 | Armazena o stream `audit:events` (AOF + volume). Só o log-service o acessa |
+| **Banco de dados** | MariaDB / MySQL externo | Tabelas do catálogo e do auth-service |
 | **TMDB API** | Externa | Fonte dos filmes |
 | **Mailtrap** | SMTP sandbox externo | Envio do e-mail de redefinição de senha |
 
@@ -33,6 +35,10 @@ flowchart TB
             subgraph auth["Container auth-service — expose 8001, sem porta no host"]
                 auth_api["FastAPI Auth<br/>login · cadastro · RBAC<br/>usuários · reset de senha"]
             end
+            subgraph logsvc["Container log-service — expose 8002, sem porta no host"]
+                log_api["FastAPI Log<br/>POST/GET /eventos"]
+            end
+            redis[("Redis<br/>stream audit:events")]
         end
     end
 
@@ -43,6 +49,8 @@ flowchart TB
     user -- "HTTP :8000" --> cat
     spa -. "servida por" .-> cat_api
     cat_api -- "HTTP interno<br/>AUTH_SERVICE_URL" --> auth_api
+    cat_api -- "eventos de auditoria<br/>X-Internal-Token" --> log_api
+    log_api -- "XADD / XREVRANGE" --> redis
     cat_api -- "SQLAlchemy<br/>favoritos, comentarios" --> db
     auth_api -- "SQLAlchemy<br/>usuarios, roles, permissions,<br/>role_permissions, reset_tokens" --> db
     cat_api -- "httpx, server-side" --> tmdb
@@ -442,3 +450,11 @@ Pontos observados no código que vale ter em mente ao evoluir a arquitetura:
 - **CORS** está com `allow_origins=["*"]` nos dois serviços.
 - **`docker-compose.yml`** usa imagens publicadas (`schinor/...`) e **`docker-compose.dev.yml`** faz build local.
 - O auth-service tem migrações Alembic (`migrations/versions/001`, `002`), mas `init_db()` também roda `create_all` e `ALTER TABLE` automáticos na inicialização.
+
+## 13. Auditoria e observabilidade
+
+- **Auditoria:** o catálogo (`clients/log_client.py`) envia eventos (`login`, `login_falhou`, `logout`, `favoritar`, `comentar`, `apagar_comentario`, `acesso_negado`) ao log-service, que os grava no Redis Stream `audit:events`. Rotas normais usam `BackgroundTasks`; os ramos que terminam em exceção (403/401) usam `await` direto. Se o log-service cair, a funcionalidade continua e o evento é perdido com um warning.
+- **Consulta:** `GET /api/logs` no catálogo exige `visualizar:logs` (só o papel `admin`) e repassa a leitura ao log-service.
+- **Health:** os três serviços expõem `/health` com readiness real (banco ou Redis) e respondem 503 se a dependência cair. O compose usa `healthcheck` e `depends_on: condition: service_healthy`.
+- **Métricas:** `/metrics` nos três serviços (`prometheus-fastapi-instrumentator`), raspado pelo Prometheus e exibido no Grafana (`prometheus.yml`, `grafana/`).
+- **CI/CD:** `.github/workflows/ci-cd.yml` sobe `docker-compose.ci.yml`, testa e publica as imagens no GHCR com as tags `sha-<commit>` e `latest`. O `docker-compose.yml` de produção consome essas imagens.
