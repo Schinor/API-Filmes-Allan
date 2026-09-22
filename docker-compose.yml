@@ -16,6 +16,9 @@ services:
       - AUTH_SERVICE_URL=http://auth-service-schinor:8001
       - LOG_SERVICE_URL=http://log-service:8002
       - LOG_INTERNAL_TOKEN=${LOG_INTERNAL_TOKEN}
+      - GRAFANA_INTERNAL_URL=http://grafana:3000
+      - PROMETHEUS_INTERNAL_URL=http://prometheus:9090
+      - PROMETHEUS_PROXY_PASSWORD=${PROMETHEUS_PROXY_PASSWORD}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -108,7 +111,19 @@ services:
 
   prometheus:
     image: ghcr.io/schinor/prometheus:${IMAGE_TAG:-latest}
+    # --web.external-url: portas dedicadas (9090) não chegam pelo proxy do domínio público
+    # (ver /prometheus em catalogo), então os links gerados pelo próprio Prometheus
+    # precisam já vir com esse prefixo. --web.route-prefix mantém as rotas internas
+    # na raiz, que é o que o proxy do catalogo espera ao encaminhar as requisições.
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.external-url=/prometheus/"
+      - "--web.route-prefix=/"
     ports:
+      # Continua publicada para acesso direto (ex: SSH tunnel) — só não chega pelo domínio público.
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - catalogo
@@ -124,6 +139,9 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      # Mesma lógica do Prometheus acima: acesso público real vem por /grafana no catalogo.
+      - GF_SERVER_ROOT_URL=${CATALOGO_URL:-http://localhost:8000}/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:

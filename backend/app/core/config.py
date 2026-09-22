@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     AUTH_SERVICE_URL: str = "http://auth-service:8001"
     LOG_SERVICE_URL: str = "http://log-service:8002"
     LOG_INTERNAL_TOKEN: str = ""
+    GRAFANA_INTERNAL_URL: str = "http://grafana:3000"
+    PROMETHEUS_INTERNAL_URL: str = "http://prometheus:9090"
+    PROMETHEUS_PROXY_PASSWORD: str = ""
 
     model_config = SettingsConfigDict(env_file=(".env", "../.env", "../../.env"), extra="ignore")
 
