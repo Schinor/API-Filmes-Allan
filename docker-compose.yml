@@ -135,6 +135,15 @@ services:
 networks:
   filmes-network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        # Sub-rede fixa: evita a alocação automática do Docker, cujo pool de
+        # redes pré-definidas ("predefined address pools") já foi esgotado
+        # no host compartilhado entre os alunos. Se o deploy falhar com
+        # "Pool overlaps with other one on this address space", troque o
+        # segundo octeto (ex: 10.21.30.0/28) até não colidir com a de outro aluno.
+        - subnet: 10.20.30.0/28
 
 volumes:
   redis-data:
