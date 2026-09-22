@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.clients import log_client
+from app.core.api_responses import COMENTARIO_NAO_ENCONTRADO, UNAUTHORIZED, forbidden
 from app.core.database import get_db
 from app.dependencies import current_user, require_permission
 from app.models.comentario import Comentario
@@ -10,8 +11,23 @@ from app.schemas.comentario import ComentarioCreate, ComentarioOut
 
 router = APIRouter(prefix="/api/comentarios", tags=["comentarios"])
 
+FORBIDDEN_DELETE = {
+    403: {
+        "description": "Nem autor nem moderador/admin (evento 'acesso_negado' é registrado na auditoria)",
+        "content": {
+            "application/json": {
+                "example": {"detail": "Apenas o autor ou um administrador podem remover este comentário"}
+            }
+        },
+    }
+}
 
-@router.get("", response_model=List[ComentarioOut])
+
+@router.get(
+    "",
+    response_model=List[ComentarioOut],
+    responses={**UNAUTHORIZED, **forbidden("listar:comentarios")},
+)
 async def listar_todos_comentarios(
     _user: dict = Depends(require_permission("listar:comentarios")),
     db: Session = Depends(get_db),
@@ -20,7 +36,11 @@ async def listar_todos_comentarios(
     return comentario_repo.list_all(db)
 
 
-@router.get("/{tmdb_movie_id}", response_model=List[ComentarioOut])
+@router.get(
+    "/{tmdb_movie_id}",
+    response_model=List[ComentarioOut],
+    responses={**UNAUTHORIZED, **forbidden("listar:comentarios")},
+)
 async def listar_comentarios(
     tmdb_movie_id: int,
     _user: dict = Depends(require_permission("listar:comentarios")),
@@ -30,7 +50,12 @@ async def listar_comentarios(
     return comentario_repo.list_by_movie(db, tmdb_movie_id)
 
 
-@router.post("", response_model=ComentarioOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ComentarioOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED, **forbidden("criar:comentarios")},
+)
 async def comentar(
     payload: ComentarioCreate,
     request: Request,
@@ -51,7 +76,10 @@ async def comentar(
     return comentario
 
 
-@router.delete("/{comentario_id}")
+@router.delete(
+    "/{comentario_id}",
+    responses={**UNAUTHORIZED, **FORBIDDEN_DELETE, **COMENTARIO_NAO_ENCONTRADO},
+)
 async def deletar_comentario(
     comentario_id: int,
     request: Request,

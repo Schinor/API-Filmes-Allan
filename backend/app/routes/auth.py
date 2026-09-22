@@ -3,6 +3,16 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from fastapi.security import OAuth2PasswordRequestForm
 from app.clients import log_client
 from app.clients.auth_client import forward_request
+from app.core.api_responses import (
+    AUTH_SERVICE_INDISPONIVEL,
+    CADASTRO_ADMIN_PROIBIDO,
+    CREDENCIAIS_INVALIDAS,
+    EMAIL_JA_CADASTRADO,
+    NOT_FOUND_USER,
+    RESET_TOKEN_INVALIDO,
+    UNAUTHORIZED,
+    forbidden,
+)
 from app.dependencies import current_user
 from app.schemas.usuario import (
     UsuarioCreate,
@@ -23,12 +33,21 @@ from app.schemas.usuario import (
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/cadastro", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/cadastro",
+    response_model=UsuarioOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**EMAIL_JA_CADASTRADO, **CADASTRO_ADMIN_PROIBIDO, **AUTH_SERVICE_INDISPONIVEL},
+)
 async def cadastro(payload: UsuarioCreate):
     return await forward_request("POST", "/cadastro", json_data=payload.model_dump())
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    responses={**CREDENCIAIS_INVALIDAS, **AUTH_SERVICE_INDISPONIVEL},
+)
 async def login(
     request: Request,
     background: BackgroundTasks,
@@ -59,7 +78,11 @@ async def login(
     return resposta
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**UNAUTHORIZED},
+)
 async def logout(
     request: Request,
     background: BackgroundTasks,
@@ -70,7 +93,7 @@ async def logout(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/me", response_model=UsuarioOut)
+@router.get("/me", response_model=UsuarioOut, responses={**UNAUTHORIZED, **AUTH_SERVICE_INDISPONIVEL})
 async def me(request: Request):
     auth_header = request.headers.get("authorization")
     if not auth_header:
@@ -82,27 +105,47 @@ async def me(request: Request):
     )
 
 
-@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    responses={**AUTH_SERVICE_INDISPONIVEL},
+)
 async def forgot_password(payload: ForgotPasswordRequest):
     return await forward_request("POST", "/forgot-password", json_data=payload.model_dump())
 
 
-@router.get("/validate-reset-token/{token}", response_model=ValidateTokenResponse)
+@router.get(
+    "/validate-reset-token/{token}",
+    response_model=ValidateTokenResponse,
+    responses={**AUTH_SERVICE_INDISPONIVEL},
+)
 async def validate_reset_token(token: str):
     return await forward_request("GET", f"/validate-reset-token/{token}")
 
 
-@router.post("/reset-password", response_model=ResetPasswordResponse)
+@router.post(
+    "/reset-password",
+    response_model=ResetPasswordResponse,
+    responses={**RESET_TOKEN_INVALIDO, **AUTH_SERVICE_INDISPONIVEL},
+)
 async def reset_password(payload: ResetPasswordRequest):
     return await forward_request("POST", "/reset-password", json_data=payload.model_dump())
 
 
-@router.get("/users/{user_id}/role", response_model=UserRoleOut)
+@router.get(
+    "/users/{user_id}/role",
+    response_model=UserRoleOut,
+    responses={**NOT_FOUND_USER, **AUTH_SERVICE_INDISPONIVEL},
+)
 async def get_user_role(user_id: int):
     return await forward_request("GET", f"/users/{user_id}/role")
 
 
-@router.get("/users", response_model=List[UsuarioOut])
+@router.get(
+    "/users",
+    response_model=List[UsuarioOut],
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios"), **AUTH_SERVICE_INDISPONIVEL},
+)
 async def list_users(request: Request):
     auth_header = request.headers.get("authorization")
     return await forward_request(
@@ -112,7 +155,11 @@ async def list_users(request: Request):
     )
 
 
-@router.put("/users/{user_id}/role", response_model=UsuarioOut)
+@router.put(
+    "/users/{user_id}/role",
+    response_model=UsuarioOut,
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios"), **NOT_FOUND_USER, **AUTH_SERVICE_INDISPONIVEL},
+)
 async def update_user_role(user_id: int, payload: UserRoleUpdate, request: Request):
     auth_header = request.headers.get("authorization")
     return await forward_request(
@@ -123,12 +170,17 @@ async def update_user_role(user_id: int, payload: UserRoleUpdate, request: Reque
     )
 
 
-@router.get("/roles", response_model=List[PapelOut])
+@router.get("/roles", response_model=List[PapelOut], responses={**AUTH_SERVICE_INDISPONIVEL})
 async def list_roles():
     return await forward_request("GET", "/roles")
 
 
-@router.post("/roles", response_model=PapelOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/roles",
+    response_model=PapelOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:papeis"), **AUTH_SERVICE_INDISPONIVEL},
+)
 async def create_or_update_role(payload: PapelCreate, request: Request):
     auth_header = request.headers.get("authorization")
     return await forward_request(
@@ -139,7 +191,11 @@ async def create_or_update_role(payload: PapelCreate, request: Request):
     )
 
 
-@router.get("/permissions", response_model=List[PermissaoOut])
+@router.get(
+    "/permissions",
+    response_model=List[PermissaoOut],
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:permissoes"), **AUTH_SERVICE_INDISPONIVEL},
+)
 async def list_permissions(request: Request):
     auth_header = request.headers.get("authorization")
     return await forward_request(
@@ -149,7 +205,10 @@ async def list_permissions(request: Request):
     )
 
 
-@router.get("/admin/status")
+@router.get(
+    "/admin/status",
+    responses={**UNAUTHORIZED, **forbidden("administrar:sistema"), **AUTH_SERVICE_INDISPONIVEL},
+)
 async def admin_status(request: Request):
     auth_header = request.headers.get("authorization")
     return await forward_request(

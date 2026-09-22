@@ -70,7 +70,19 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    responses={
+        503: {
+            "description": "Banco de dados inacessível",
+            "content": {
+                "application/json": {
+                    "example": {"status": "unhealthy", "db": "down", "service": "auth-service", "version": "2.0.0"}
+                }
+            },
+        }
+    },
+)
 def health():
     """Readiness: só responde 200 se o banco de dados estiver acessível."""
     info = {"service": "auth-service", "version": "2.0.0"}

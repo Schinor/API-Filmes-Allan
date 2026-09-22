@@ -251,6 +251,32 @@ docker compose up --build
 
 ---
 
+## 📄 Documentação da API (Swagger / OpenAPI)
+
+Dois serviços documentados de ponta a ponta: **catálogo** e **auth-service**.
+
+| Serviço | Swagger UI | Redoc |
+|---|---|---|
+| catalogo | `http://localhost:8000/api/docs` | `http://localhost:8000/api/redoc` |
+| auth-service | `http://localhost:8001/docs` *(só na rede interna do Docker — sem porta publicada no host)* | `http://localhost:8001/redoc` |
+
+Cada rota, nos dois serviços, documenta:
+- Método HTTP, path e parâmetros (query/path), com os tipos e validações reais (`Query(..., ge=1, le=500)` etc.).
+- Corpo da requisição, via os `schemas` Pydantic (`response_model` e os `BaseModel` de entrada).
+- **Todas as respostas possíveis com exemplo de payload** — sucesso e erro. Os erros (`401`, `403`, `404`, `409`, `502`, `503`, além do `400` específico de cada rota) são declarados via `responses={...}` em cada `@router` (ver [`backend/app/core/api_responses.py`](backend/app/core/api_responses.py) e [`auth-service/app/core/api_responses.py`](auth-service/app/core/api_responses.py)), com o `detail` exatamente igual ao que o código realmente devolve — não é um exemplo genérico.
+
+Por padrão o FastAPI só documenta o código de sucesso e o `422` automático de validação; os `responses=` acima existem porque sem eles o Swagger nunca mostraria, por exemplo, que `POST /api/favoritos` pode devolver `409` (filme já favoritado) ou que qualquer rota protegida por `require_permission` pode devolver `403` (e gerar um evento `acesso_negado` na auditoria).
+
+```bash
+# Exemplo de "Try it out" via curl (equivalente ao botão no Swagger)
+curl -s -X POST http://localhost:8000/api/auth/login \
+  -d "username=seu-email@exemplo.com&password=sua-senha" | python3 -m json.tool
+```
+
+> 📸 **Print do Swagger UI:** _pendente — abrir `/api/docs`, expandir um endpoint (ex: `POST /api/auth/login`), rodar "Try it out" com um caso real e anexar aqui (pasta `assets/`)._
+
+---
+
 ## 🧾 Auditoria: log-service + Redis Streams
 
 Terceiro microsserviço da stack. Ele recebe eventos de auditoria do catálogo e os grava em um **Redis Stream** (`audit:events`).
@@ -355,13 +381,15 @@ git push → GitHub Actions (build + teste) → imagens no GHCR (sha-<commit> + 
 Workflow: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
 
 1. **`test`** (em todo push e PR): roda o `pytest` (suíte completa), sobe a stack completa de [`docker-compose.ci.yml`](docker-compose.ci.yml) com Redis e SQLite descartáveis (o MySQL de produção é da infra, não roda no CI) e `--wait` (só segue se **todos** os serviços ficarem `healthy`), e então falha o pipeline se: `/health` do catálogo não responder 200, o login de um usuário inexistente não devolver 401 (prova que catálogo → auth-service → banco conversam) ou `/metrics` não expuser métricas.
-2. **`publish`** (só em push para `main`, e só se `test` passou): constrói as três imagens e publica no **GHCR** com duas tags: `sha-<7 primeiros caracteres do commit>` (rastreável até o commit) e `latest`.
+2. **`publish`** (só em push para `main`, e só se `test` passou): constrói as cinco imagens e publica no **GHCR** com duas tags: `sha-<7 primeiros caracteres do commit>` (rastreável até o commit) e `latest`.
 
 | Imagem | Origem |
 |---|---|
 | `ghcr.io/schinor/catalogo-filmes` | `Dockerfile` (raiz) |
 | `ghcr.io/schinor/auth-service` | `auth-service/Dockerfile` |
 | `ghcr.io/schinor/log-service` | `log-service/Dockerfile` |
+| `ghcr.io/schinor/prometheus` | `prometheus/Dockerfile` |
+| `ghcr.io/schinor/grafana` | `grafana/Dockerfile` |
 
 ### Como os segredos são fornecidos (sem revelar valores)
 

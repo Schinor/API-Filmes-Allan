@@ -3,13 +3,17 @@ from typing import Any, Dict, List
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.core.api_responses import LOG_SERVICE_INDISPONIVEL, UNAUTHORIZED, forbidden
 from app.core.config import settings
 from app.dependencies import require_permission
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 
 
-@router.get("")
+@router.get(
+    "",
+    responses={**UNAUTHORIZED, **forbidden("visualizar:logs"), **LOG_SERVICE_INDISPONIVEL},
+)
 async def listar_logs(
     limit: int = Query(50, ge=1, le=500),
     _user: dict = Depends(require_permission("visualizar:logs")),

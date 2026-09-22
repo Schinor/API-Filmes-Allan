@@ -8,6 +8,13 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_current_user
 from app.core.email import send_password_reset_email
+from app.core.api_responses import (
+    CADASTRO_ADMIN_PROIBIDO,
+    CREDENCIAIS_INVALIDAS,
+    EMAIL_JA_CADASTRADO,
+    RESET_TOKEN_INVALIDO,
+    UNAUTHORIZED,
+)
 from app.repositories import usuario_repo, reset_token_repo
 from app.schemas.usuario import UsuarioCreate, UsuarioOut
 from app.schemas.auth import (
@@ -29,7 +36,12 @@ FORGOT_PASSWORD_MESSAGE = (
 )
 
 
-@router.post("/cadastro", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/cadastro",
+    response_model=UsuarioOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**EMAIL_JA_CADASTRADO, **CADASTRO_ADMIN_PROIBIDO},
+)
 def cadastro(payload: UsuarioCreate, db: Session = Depends(get_db)):
     if usuario_repo.get_by_email(db, payload.email):
         raise HTTPException(status_code=400, detail="E-mail já cadastrado")
@@ -50,7 +62,7 @@ def cadastro(payload: UsuarioCreate, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, responses={**CREDENCIAIS_INVALIDAS})
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     usuario = usuario_repo.get_by_email(db, form_data.username)
     if not usuario or not verify_password(form_data.password, usuario.senha_hash):
@@ -74,7 +86,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     }
 
 
-@router.get("/me", response_model=UsuarioOut)
+@router.get("/me", response_model=UsuarioOut, responses={**UNAUTHORIZED})
 def me(current_user=Depends(get_current_user)):
     return current_user
 
@@ -131,7 +143,7 @@ def validate_reset_token(token: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/reset-password", response_model=ResetPasswordResponse)
+@router.post("/reset-password", response_model=ResetPasswordResponse, responses={**RESET_TOKEN_INVALIDO})
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     reset_token = reset_token_repo.get_by_token(db, payload.token)
     if not reset_token:

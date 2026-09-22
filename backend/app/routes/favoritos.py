@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.clients import log_client
+from app.core.api_responses import FAVORITO_DUPLICADO, FAVORITO_NAO_ENCONTRADO, UNAUTHORIZED, forbidden
 from app.core.database import get_db
 from app.dependencies import require_permission
 from app.repositories import favorito_repo
@@ -10,7 +11,11 @@ from app.schemas.favoritos import FavoritoCreate, FavoritoOut
 router = APIRouter(prefix="/api/favoritos", tags=["favoritos"])
 
 
-@router.get("", response_model=List[FavoritoOut])
+@router.get(
+    "",
+    response_model=List[FavoritoOut],
+    responses={**UNAUTHORIZED, **forbidden("listar:favoritos")},
+)
 async def listar_favoritos(
     user: dict = Depends(require_permission("listar:favoritos")),
     db: Session = Depends(get_db),
@@ -19,7 +24,12 @@ async def listar_favoritos(
     return favorito_repo.list_by_user(db, user["id"])
 
 
-@router.post("", response_model=FavoritoOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=FavoritoOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED, **forbidden("adicionar:favoritos"), **FAVORITO_DUPLICADO},
+)
 async def favoritar(
     payload: FavoritoCreate,
     request: Request,
@@ -47,7 +57,11 @@ async def favoritar(
     return fav
 
 
-@router.delete("/{tmdb_movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{tmdb_movie_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**UNAUTHORIZED, **forbidden("remover:favoritos"), **FAVORITO_NAO_ENCONTRADO},
+)
 async def desfavoritar(
     tmdb_movie_id: int,
     user: dict = Depends(require_permission("remover:favoritos")),

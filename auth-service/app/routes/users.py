@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.api_responses import NOT_FOUND_USER, UNAUTHORIZED, forbidden
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.models.permissao import Permissao
@@ -18,7 +19,11 @@ from app.schemas.usuario import (
 router = APIRouter(prefix="", tags=["users & rbac"])
 
 
-@router.get("/users", response_model=List[UsuarioOut])
+@router.get(
+    "/users",
+    response_model=List[UsuarioOut],
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios")},
+)
 def list_users(
     db: Session = Depends(get_db),
     _user=Depends(require_permission("gerenciar:usuarios")),
@@ -26,7 +31,7 @@ def list_users(
     return usuario_repo.list_all(db)
 
 
-@router.get("/users/{user_id}/role", response_model=UserRoleOut)
+@router.get("/users/{user_id}/role", response_model=UserRoleOut, responses={**NOT_FOUND_USER})
 def get_user_role(user_id: int, db: Session = Depends(get_db)):
     usuario = usuario_repo.get_by_id(db, user_id)
     if not usuario:
@@ -39,7 +44,11 @@ def get_user_role(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.put("/users/{user_id}/role", response_model=UsuarioOut)
+@router.put(
+    "/users/{user_id}/role",
+    response_model=UsuarioOut,
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios"), **NOT_FOUND_USER},
+)
 def update_user_role(
     user_id: int,
     payload: UserRoleUpdate,
@@ -52,7 +61,7 @@ def update_user_role(
     return usuario_repo.update_role(db, usuario, payload.role)
 
 
-@router.get("/users/{user_id}", response_model=UsuarioOut)
+@router.get("/users/{user_id}", response_model=UsuarioOut, responses={**NOT_FOUND_USER})
 def get_user(user_id: int, db: Session = Depends(get_db)):
     usuario = usuario_repo.get_by_id(db, user_id)
     if not usuario:
@@ -65,7 +74,12 @@ def list_roles(db: Session = Depends(get_db)):
     return db.query(Papel).all()
 
 
-@router.post("/roles", response_model=PapelOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/roles",
+    response_model=PapelOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:papeis")},
+)
 def create_or_update_role(
     payload: PapelCreate,
     db: Session = Depends(get_db),
@@ -88,7 +102,11 @@ def create_or_update_role(
     return role
 
 
-@router.get("/permissions", response_model=List[PermissaoOut])
+@router.get(
+    "/permissions",
+    response_model=List[PermissaoOut],
+    responses={**UNAUTHORIZED, **forbidden("gerenciar:permissoes")},
+)
 def list_permissions(
     db: Session = Depends(get_db),
     _user=Depends(require_permission("gerenciar:permissoes")),
@@ -96,7 +114,10 @@ def list_permissions(
     return db.query(Permissao).all()
 
 
-@router.get("/admin/status")
+@router.get(
+    "/admin/status",
+    responses={**UNAUTHORIZED, **forbidden("administrar:sistema")},
+)
 def admin_status(
     _user=Depends(require_permission("administrar:sistema")),
 ):
