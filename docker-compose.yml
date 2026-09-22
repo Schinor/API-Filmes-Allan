@@ -107,9 +107,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    image: ghcr.io/schinor/prometheus:${IMAGE_TAG:-latest}
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
@@ -121,14 +119,12 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana
+    image: ghcr.io/schinor/grafana:${IMAGE_TAG:-latest}
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus

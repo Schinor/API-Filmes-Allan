@@ -244,10 +244,10 @@ docker compose up --build
    - `GRAFANA_ADMIN_PASSWORD`: senha do admin do Grafana
    - `IMAGE_TAG` *(opcional)*: tag das imagens do GHCR (`latest` por padrão; use `sha-<commit>` para fixar uma versão)
    - `GRAFANA_PORT` / `PROMETHEUS_PORT` *(opcional)*: portas do host, se as padrões (3000 e 9090) estiverem ocupadas
-5. Clique em **Deploy the stack**. O Portainer baixa as imagens `ghcr.io/schinor/*` (catálogo, auth-service e log-service), sobe o Redis, o Prometheus e o Grafana e conecta tudo na rede privada.
+5. Clique em **Deploy the stack**. O Portainer baixa as imagens `ghcr.io/schinor/*` (catálogo, auth-service, log-service, prometheus e grafana), sobe o Redis e conecta tudo na rede privada.
 
 > As imagens do GHCR nascem **privadas**. Torne os pacotes públicos ou cadastre no Portainer um registry `ghcr.io` com um Personal Access Token de escopo `read:packages` (o token fica no Portainer, nunca no repositório).
-> Os arquivos `prometheus.yml` e `grafana/` são montados por caminho relativo, então a stack precisa ser criada a partir do **repositório** com a opção de *relative path volumes* do Portainer habilitada.
+> O Prometheus e o Grafana usam imagens próprias (`prometheus/Dockerfile`, `grafana/Dockerfile`) com a configuração (`prometheus.yml`, `grafana/provisioning`, `grafana/dashboards`) já embutida na imagem — não há bind mount de caminho do repositório, então a stack sobe normalmente mesmo com um usuário não administrador no Portainer.
 
 ---
 

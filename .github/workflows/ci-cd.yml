@@ -64,6 +64,8 @@ jobs:
           - { name: catalogo-filmes, context: ".", file: "Dockerfile" }
           - { name: auth-service, context: "./auth-service", file: "auth-service/Dockerfile" }
           - { name: log-service, context: "./log-service", file: "log-service/Dockerfile" }
+          - { name: prometheus, context: "./prometheus", file: "prometheus/Dockerfile" }
+          - { name: grafana, context: "./grafana", file: "grafana/Dockerfile" }
     steps:
       - uses: actions/checkout@v4
 

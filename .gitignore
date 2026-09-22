@@ -30,3 +30,6 @@ frontend/.cache/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Guia pessoal de deploy (não versionado)
+COMO_SUBIR_A_APLICACAO.md
