@@ -287,8 +287,7 @@ curl -s -X POST http://localhost:8000/api/auth/login \
   -d "username=seu-email@exemplo.com&password=sua-senha" | python3 -m json.tool
 ```
 
-> 📸 **Print do Swagger UI:** abra https://marcio-mazega-isw055.lapps.studio/api/docs, expanda um endpoint (ex: `POST /api/auth/login`), rode "Try it out" com um caso real e anexe aqui (pasta `assets/`).
-> ⚠️ O print já enviado (`assets/SiteSwaggerUI.png`) expõe a senha real em texto puro e um `access_token` JWT válido no corpo da resposta — **não usar assim**. Troque a senha dessa conta e refaça o print com um usuário de teste antes de anexar, ou corte/borre o `curl -d "..."` e o campo `access_token` do JSON de resposta.
+![Swagger UI — POST /api/auth/login com "Try it out" (senha e token ocultados)](assets/SiteSwaggerUI.png)
 
 ---
 
