@@ -244,12 +244,11 @@ docker compose up --build
    - `SECRET_KEY`: Sua chave secreta JWT
    - `MAILTRAP_HOST`, `MAILTRAP_PORT`, `MAILTRAP_USERNAME`, `MAILTRAP_PASSWORD`: credenciais SMTP (Sandbox para testes, Email Sending para entrega real)
    - `MAILTRAP_FROM_EMAIL`: remetente do domínio verificado no Mailtrap
-   - `CATALOGO_URL`: URL pública do catálogo (usada no link do e-mail)
+   - `CATALOGO_URL`: URL pública do catálogo, com `https://` (usada no link do e-mail e como base dos links do Grafana — se ficar no padrão `localhost`, o login do Grafana redireciona para `localhost:8000/grafana`)
    - `LOG_INTERNAL_TOKEN`: token compartilhado entre o catálogo e o log-service
    - `GRAFANA_ADMIN_PASSWORD`: senha do admin do Grafana
    - `PROMETHEUS_PROXY_PASSWORD`: senha do HTTP Basic que protege `/prometheus` (o Prometheus não tem login próprio)
    - `IMAGE_TAG` *(opcional)*: tag das imagens do GHCR (`latest` por padrão; use `sha-<commit>` para fixar uma versão)
-   - `GRAFANA_PORT` / `PROMETHEUS_PORT` *(opcional)*: portas do host, se as padrões (3000 e 9090) estiverem ocupadas
 5. Clique em **Deploy the stack**. O Portainer baixa as imagens `ghcr.io/schinor/*` (catálogo, auth-service, log-service, prometheus e grafana), sobe o Redis e conecta tudo na rede privada.
 
 **Stack em produção:** https://marcio-mazega-isw055.lapps.studio (domínio gerado pelo Portainer para a porta pública do `catalogo`, ou seja, a porta `${PORT}` mapeada no compose).
@@ -258,7 +257,7 @@ docker compose up --build
 - Grafana: https://marcio-mazega-isw055.lapps.studio/grafana (login `admin` / `GRAFANA_ADMIN_PASSWORD`)
 - Prometheus: https://marcio-mazega-isw055.lapps.studio/prometheus (HTTP Basic `admin` / `PROMETHEUS_PROXY_PASSWORD`)
 
-> Apenas o `catalogo` fica exposto diretamente nesse domínio (é o único serviço com `ports:` publicado — ver [Docker Compose](#-docker-compose--configuração-dos-serviços)). `auth-service`, `log-service` e `redis` só existem na rede interna `filmes-network`. Prometheus (`9090`) e Grafana (`3000`) têm porta própria no compose, mas o domínio público passa por um proxy (Cloudflare, no caso do Portainer/lapps.studio) que só encaminha um conjunto fixo de portas HTTP — as portas dedicadas nunca chegam lá. Por isso o `catalogo` também expõe **`/grafana`** e **`/prometheus`**, que encaminham internamente para `grafana:3000` e `prometheus:9090` (mesmo padrão *bridge* já usado em `/api/auth/*` — ver [`backend/app/routes/observability_proxy.py`](backend/app/routes/observability_proxy.py)). O Grafana continua com seu próprio login; o Prometheus não tem autenticação nativa, então o proxy exige HTTP Basic (`PROMETHEUS_PROXY_PASSWORD`) — sem essa variável definida, o proxy responde `503` de propósito.
+> Apenas o `catalogo` fica exposto diretamente nesse domínio (é o único serviço com `ports:` publicado — ver [Docker Compose](#-docker-compose--configuração-dos-serviços)). `auth-service`, `log-service` e `redis` só existem na rede interna `filmes-network`. Prometheus (`9090`) e Grafana (`3000`) também ficam só na rede interna (`expose:`): o domínio público passa por um proxy (Cloudflare, no caso do Portainer/lapps.studio) que só encaminha um conjunto fixo de portas HTTP, então uma porta dedicada nunca chegaria lá — e publicá-la no host compartilhado conflita com a stack de outro aluno (`port is already allocated`) e impede o container de subir. Por isso o `catalogo` expõe **`/grafana`** e **`/prometheus`**, que encaminham internamente para `grafana:3000` e `prometheus:9090` removendo o prefixo — por isso o Grafana usa só `GF_SERVER_ROOT_URL=${CATALOGO_URL}/grafana/` (para gerar os links) **sem** `GF_SERVER_SERVE_FROM_SUB_PATH`, e o Prometheus usa `--web.external-url=/prometheus/` com `--web.route-prefix=/` (mesmo padrão *bridge* já usado em `/api/auth/*` — ver [`backend/app/routes/observability_proxy.py`](backend/app/routes/observability_proxy.py)). O Grafana continua com seu próprio login; o Prometheus não tem autenticação nativa, então o proxy exige HTTP Basic (`PROMETHEUS_PROXY_PASSWORD`) — sem essa variável definida, o proxy responde `503` de propósito.
 
 > As imagens do GHCR nascem **privadas**. Torne os pacotes públicos ou cadastre no Portainer um registry `ghcr.io` com um Personal Access Token de escopo `read:packages` (o token fica no Portainer, nunca no repositório).
 > O Prometheus e o Grafana usam imagens próprias (`prometheus/Dockerfile`, `grafana/Dockerfile`) com a configuração (`prometheus.yml`, `grafana/provisioning`, `grafana/dashboards`) já embutida na imagem — não há bind mount de caminho do repositório, então a stack sobe normalmente mesmo com um usuário não administrador no Portainer.
@@ -384,8 +383,8 @@ Os três serviços expõem `/metrics` via `prometheus-fastapi-instrumentator` (`
 
 ### Prometheus + Grafana (bônus)
 
-- Prometheus: `http://localhost:9090` localmente, ou https://marcio-mazega-isw055.lapps.studio/prometheus em produção (HTTP Basic `admin` / `PROMETHEUS_PROXY_PASSWORD` — ver [proxy](#-docker-compose--configuração-dos-serviços)). `prometheus.yml` raspa `catalogo:8000`, `auth-service:8001`, `log-service:8002`; em `/targets` os três devem estar `UP`.
-- Grafana: `http://localhost:3000` localmente, ou https://marcio-mazega-isw055.lapps.studio/grafana em produção (usuário `admin`, senha em `GRAFANA_ADMIN_PASSWORD`). A fonte de dados e o painel **HANKS+ — Serviços** (requisições/min, erros 4xx/5xx e latência p95) já vêm provisionados em `grafana/`.
+- Prometheus: `http://localhost:9090` localmente (`docker-compose.dev.yml`), ou https://marcio-mazega-isw055.lapps.studio/prometheus em produção (HTTP Basic `admin` / `PROMETHEUS_PROXY_PASSWORD` — ver [proxy](#-docker-compose--configuração-dos-serviços)). `prometheus.yml` raspa `catalogo:8000`, `auth-service:8001`, `log-service:8002`; em `/targets` os três devem estar `UP`.
+- Grafana: `http://localhost:3000` localmente (`docker-compose.dev.yml`), ou https://marcio-mazega-isw055.lapps.studio/grafana em produção (usuário `admin`, senha em `GRAFANA_ADMIN_PASSWORD`). A fonte de dados e o painel **HANKS+ — Serviços** (requisições/min, erros 4xx/5xx e latência p95) já vêm provisionados em `grafana/`.
 
 ---
 

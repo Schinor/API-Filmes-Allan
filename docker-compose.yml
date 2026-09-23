@@ -122,9 +122,11 @@ services:
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--web.external-url=/prometheus/"
       - "--web.route-prefix=/"
-    ports:
-      # Continua publicada para acesso direto (ex: SSH tunnel) — só não chega pelo domínio público.
-      - "${PROMETHEUS_PORT:-9090}:9090"
+    # Sem "ports:" — a porta dedicada não chega pelo domínio público e, no host
+    # compartilhado do Portainer, publicar 9090 conflita com a stack de outro aluno
+    # ("port is already allocated") e o container nem sobe. Acesso: /prometheus no catalogo.
+    expose:
+      - "9090"
     depends_on:
       - catalogo
       - auth-service
@@ -135,13 +137,16 @@ services:
 
   grafana:
     image: ghcr.io/schinor/grafana:${IMAGE_TAG:-latest}
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+    # Sem "ports:" pelo mesmo motivo do Prometheus — acesso via /grafana no catalogo.
+    expose:
+      - "3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-      # Mesma lógica do Prometheus acima: acesso público real vem por /grafana no catalogo.
+      # ROOT_URL só define os links gerados (/grafana/...). Sem SERVE_FROM_SUB_PATH:
+      # o proxy do catalogo já remove o prefixo /grafana, então o Grafana serve na raiz.
+      # Com ele ligado, toda requisição sem o prefixo era redirecionada para ROOT_URL (loop).
+      # CATALOGO_URL precisa ser a URL pública (https://...) — senão o login cai em localhost.
       - GF_SERVER_ROOT_URL=${CATALOGO_URL:-http://localhost:8000}/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
