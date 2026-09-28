@@ -433,3 +433,70 @@ def test_cliente_de_log_nunca_levanta_excecao_com_log_service_fora():
 
     settings.LOG_SERVICE_URL = "http://127.0.0.1:9"  # porta fechada
     asyncio.run(log_client.registrar("teste"))  # não deve levantar
+
+
+def _mock_grafana(monkeypatch, handler):
+    import httpx
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.routes.observability_proxy.httpx.AsyncClient",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+
+
+def test_proxy_grafana_preserva_host_e_headers_com_acento(monkeypatch):
+    import httpx
+
+    app, _, _, TestClient = setup_catalogo_app()
+    recebidos = {}
+
+    def handler(request):
+        recebidos.update({k.decode(): v for k, v in request.headers.raw})
+        return httpx.Response(200, json={"results": {}})
+
+    _mock_grafana(monkeypatch, handler)
+    client = TestClient(app, base_url="https://filmes.exemplo.com")
+
+    resp = client.post(
+        "/grafana/api/ds/query",
+        json={"queries": []},
+        headers={
+            "Origin": "https://filmes.exemplo.com",
+            # O Grafana manda o título do painel num header, com acentos em UTF-8
+            "X-Panel-Title": "Latência p95".encode(),
+            "X-Forwarded-For": "203.0.113.7",
+        },
+    )
+
+    assert resp.status_code == 200
+    # Sem o Host original, o CSRF do Grafana compara Origin com "grafana:3000" e recusa (403)
+    assert recebidos["host"] == b"filmes.exemplo.com"
+    assert recebidos["x-forwarded-host"] == b"filmes.exemplo.com"
+    assert recebidos["x-forwarded-for"].startswith(b"203.0.113.7, ")
+    assert recebidos["x-panel-title"] == "Latência p95".encode()
+
+
+def test_proxy_grafana_repassa_todos_os_set_cookie(monkeypatch):
+    import httpx
+
+    app, _, _, TestClient = setup_catalogo_app()
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            headers=[
+                ("set-cookie", "grafana_session=abc; Path=/; HttpOnly"),
+                ("set-cookie", "grafana_session_expiry=123; Path=/"),
+            ],
+            json={"message": "Logged in"},
+        )
+
+    _mock_grafana(monkeypatch, handler)
+    resp = TestClient(app).post("/grafana/login", json={"user": "admin", "password": "x"})
+
+    assert resp.status_code == 200
+    assert resp.headers.get_list("set-cookie") == [
+        "grafana_session=abc; Path=/; HttpOnly",
+        "grafana_session_expiry=123; Path=/",
+    ]

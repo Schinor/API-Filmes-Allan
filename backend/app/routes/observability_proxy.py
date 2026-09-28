@@ -33,6 +33,14 @@ _HOP_BY_HOP_HEADERS = {
     "content-length",
 }
 
+_SKIP_REQUEST_HEADERS = {
+    b"content-length",
+    b"x-forwarded-for",
+    b"x-forwarded-proto",
+    b"x-forwarded-host",
+    *(h.encode() for h in _HOP_BY_HOP_HEADERS),
+}
+
 _security = HTTPBasic()
 
 
@@ -54,13 +62,34 @@ def _require_prometheus_auth(credentials: HTTPBasicCredentials = Depends(_securi
         )
 
 
+def _forward_headers(request: Request) -> list[tuple[bytes, bytes]]:
+    """Headers repassados ao upstream, como bytes crus.
+
+    - Host é mantido: o Grafana compara Origin com Host na proteção CSRF e recusa
+      com 403 ("origin not allowed") os POSTs de consulta dos painéis se o Host
+      virar o nome interno do container.
+    - Bytes crus porque o Grafana envia headers com acento (X-Panel-Title:
+      "Latência p95"), que o httpx não consegue codificar como ASCII a partir de str.
+    """
+    headers = [
+        (key, value)
+        for key, value in request.headers.raw
+        if key.lower() not in _SKIP_REQUEST_HEADERS
+    ]
+    # Estende a cadeia que já vier do Cloudflare em vez de duplicar os headers
+    client_ip = request.client.host if request.client else ""
+    forwarded_for = ", ".join(filter(None, [request.headers.get("x-forwarded-for"), client_ip]))
+    headers += [
+        (b"x-forwarded-for", forwarded_for.encode("latin-1")),
+        (b"x-forwarded-proto", request.headers.get("x-forwarded-proto", request.url.scheme).encode("latin-1")),
+        (b"x-forwarded-host", request.headers.get("x-forwarded-host", request.headers.get("host", "")).encode("latin-1")),
+    ]
+    return headers
+
+
 async def _proxy_request(request: Request, base_url: str, path: str) -> Response:
     url = f"{base_url.rstrip('/')}/{path}"
-    forward_headers = {
-        key: value
-        for key, value in request.headers.items()
-        if key.lower() not in {"host", "content-length"}
-    }
+    forward_headers = _forward_headers(request)
     body = await request.body()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -79,12 +108,12 @@ async def _proxy_request(request: Request, base_url: str, path: str) -> Response
                 detail="Serviço de observabilidade indisponível",
             )
 
-    response_headers = {
-        key: value
-        for key, value in upstream.headers.items()
-        if key.lower() not in _HOP_BY_HOP_HEADERS
-    }
-    return Response(content=upstream.content, status_code=upstream.status_code, headers=response_headers)
+    response = Response(content=upstream.content, status_code=upstream.status_code)
+    # multi_items + append: um dict juntaria os vários Set-Cookie do Grafana num header só
+    for key, value in upstream.headers.multi_items():
+        if key.lower() not in _HOP_BY_HOP_HEADERS:
+            response.headers.append(key, value)
+    return response
 
 
 @router.get("/grafana")
