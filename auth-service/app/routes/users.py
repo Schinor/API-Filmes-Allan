@@ -1,16 +1,18 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.api_responses import NOT_FOUND_USER, UNAUTHORIZED, forbidden
+from app.core.api_responses import NOT_FOUND_USER, UNAUTHORIZED, forbidden, gestao_usuario_invalida
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.models.permissao import Permissao
 from app.models.papel import Papel
+from app.models.usuario import Usuario
 from app.repositories import usuario_repo
 from app.schemas.usuario import (
     UsuarioOut,
     UserRoleOut,
     UserRoleUpdate,
+    UserPermissionsUpdate,
     PapelOut,
     PapelCreate,
     PermissaoOut,
@@ -44,21 +46,87 @@ def get_user_role(user_id: int, db: Session = Depends(get_db)):
     }
 
 
+def _usuario_gerenciavel(db: Session, user_id: int, admin) -> Usuario:
+    """Busca o alvo de uma ação administrativa; o admin não pode agir sobre a própria conta."""
+    usuario = usuario_repo.get_by_id(db, user_id)
+    if not usuario:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+    if usuario.id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode alterar ou remover a sua própria conta por aqui",
+        )
+    return usuario
+
+
 @router.put(
     "/users/{user_id}/role",
     response_model=UsuarioOut,
-    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios"), **NOT_FOUND_USER},
+    responses={
+        **gestao_usuario_invalida(plano_inexistente="Plano inexistente"),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+    },
 )
 def update_user_role(
     user_id: int,
     payload: UserRoleUpdate,
     db: Session = Depends(get_db),
-    _user=Depends(require_permission("gerenciar:usuarios")),
+    admin=Depends(require_permission("gerenciar:usuarios")),
 ):
-    usuario = usuario_repo.get_by_id(db, user_id)
-    if not usuario:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
-    return usuario_repo.update_role(db, usuario, payload.role)
+    usuario = _usuario_gerenciavel(db, user_id, admin)
+    papel = usuario_repo.get_role(db, payload.role)
+    if not papel:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Plano inexistente")
+    return usuario_repo.update_role(db, usuario, papel)
+
+
+@router.put(
+    "/users/{user_id}/permissions",
+    response_model=UsuarioOut,
+    responses={
+        **gestao_usuario_invalida(permissao_inexistente="Permissões inexistentes: voar:nave"),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+    },
+)
+def update_user_permissions(
+    user_id: int,
+    payload: UserPermissionsUpdate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_permission("gerenciar:usuarios")),
+):
+    usuario = _usuario_gerenciavel(db, user_id, admin)
+    por_slug = {p.slug: p for p in db.query(Permissao).all()}
+    desconhecidas = sorted(set(payload.permissions) - por_slug.keys())
+    if desconhecidas:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Permissões inexistentes: {', '.join(desconhecidas)}",
+        )
+    permissoes = [por_slug[s] for s in set(payload.permissions)]
+    return usuario_repo.set_permissions(db, usuario, permissoes)
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **gestao_usuario_invalida(),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+    },
+)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_permission("gerenciar:usuarios")),
+):
+    usuario = _usuario_gerenciavel(db, user_id, admin)
+    usuario_repo.delete(db, usuario)
 
 
 @router.get("/users/{user_id}", response_model=UsuarioOut, responses={**NOT_FOUND_USER})

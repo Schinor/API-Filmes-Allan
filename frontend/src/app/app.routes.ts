@@ -35,5 +35,10 @@ export const routes: Routes = [
     canActivate: [authGuard, permissionGuard('listar:comentarios')],
     loadComponent: () => import('./pages/comentarios/comentarios.component').then(m => m.ComentariosComponent),
   },
+  {
+    path: 'usuarios',
+    canActivate: [authGuard, permissionGuard('gerenciar:usuarios')],
+    loadComponent: () => import('./pages/usuarios/usuarios.component').then(m => m.UsuariosComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

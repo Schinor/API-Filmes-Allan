@@ -2,6 +2,8 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from app.models.usuario import Usuario
 from app.models.papel import Papel
+from app.models.permissao import Permissao
+from app.models.usuario_permissao import UsuarioPermissao
 from app.core.security import hash_password
 
 LEGACY_ROLE_MAP = {
@@ -46,17 +48,40 @@ def create(db: Session, nome: str, email: str, senha: str, role: str = "amigo-do
     return user
 
 
-def update_role(db: Session, user: Usuario, role_slug: str) -> Usuario:
+def get_role(db: Session, role_slug: str) -> Optional[Papel]:
     slug = LEGACY_ROLE_MAP.get(role_slug.strip().lower(), role_slug.strip().lower())
-    papel = db.query(Papel).filter(Papel.slug == slug).first()
-    if papel:
-        user.role_id = papel.id
-        user.role = papel.slug
-    else:
-        user.role = slug
+    return db.query(Papel).filter(Papel.slug == slug).first()
+
+
+def update_role(db: Session, user: Usuario, papel: Papel) -> Usuario:
+    """Troca o plano do usuário. Os ajustes individuais de permissão são descartados."""
+    user.role_id = papel.id
+    user.role = papel.slug
+    user.ajustes_permissao.clear()
     db.commit()
     db.refresh(user)
     return user
+
+
+def set_permissions(db: Session, user: Usuario, permissoes: List[Permissao]) -> Usuario:
+    """Define as permissões efetivas do usuário, gravando só a diferença em relação ao papel."""
+    do_papel = {p.id for p in user.papel.permissoes} if user.papel else set()
+    desejadas = {p.id for p in permissoes}
+
+    user.ajustes_permissao.clear()
+    db.flush()
+    for perm_id in sorted(desejadas - do_papel):
+        user.ajustes_permissao.append(UsuarioPermissao(permission_id=perm_id, concedida=True))
+    for perm_id in sorted(do_papel - desejadas):
+        user.ajustes_permissao.append(UsuarioPermissao(permission_id=perm_id, concedida=False))
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def delete(db: Session, user: Usuario) -> None:
+    db.delete(user)
+    db.commit()
 
 
 def update_password(db: Session, user: Usuario, nova_senha: str) -> Usuario:

@@ -400,3 +400,93 @@ def test_permissao_visualizar_logs_somente_no_papel_admin():
         json={"nome": "Comum", "email": "comum-logs@exemplo.com", "senha": "password123", "role": "capitao-hanks"},
     )
     assert "visualizar:logs" not in resp.json()["permissions"]
+
+
+def _criar_e_logar(email, role, senha="password123"):
+    db = TestingSessionLocal()
+    user = usuario_repo.create(db, nome=f"User {role}", email=email, senha=senha, role=role)
+    user_id = user.id
+    db.close()
+    token = client.post("/login", data={"username": email, "password": senha}).json()["access_token"]
+    return user_id, {"Authorization": f"Bearer {token}"}
+
+
+def test_gestao_de_usuarios_exige_admin():
+    alvo_id, _ = _criar_e_logar("alvo@exemplo.com", "amigo-do-wilson")
+    _, comum = _criar_e_logar("capitao-gestao@exemplo.com", "capitao-hanks")
+
+    assert client.get("/users", headers=comum).status_code == 403
+    assert client.put(f"/users/{alvo_id}/role", json={"role": "admin"}, headers=comum).status_code == 403
+    assert client.put(
+        f"/users/{alvo_id}/permissions", json={"permissions": ["administrar:sistema"]}, headers=comum
+    ).status_code == 403
+    assert client.delete(f"/users/{alvo_id}", headers=comum).status_code == 403
+    assert client.delete(f"/users/{alvo_id}").status_code == 401
+
+
+def test_admin_altera_plano_e_descarta_ajustes_individuais():
+    alvo_id, _ = _criar_e_logar("plano@exemplo.com", "amigo-do-wilson")
+    _, admin = _criar_e_logar("admin-plano@exemplo.com", "admin")
+
+    ajuste = client.put(
+        f"/users/{alvo_id}/permissions",
+        json={"permissions": ["assistir:catalogo", "criar:comentarios"]},
+        headers=admin,
+    )
+    assert ajuste.status_code == 200
+
+    resp = client.put(f"/users/{alvo_id}/role", json={"role": "preso-no-terminal"}, headers=admin)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["role"] == "preso-no-terminal"
+    assert "adicionar:favoritos" in data["permissions"]
+    # Trocar de plano volta às permissões padrão do novo plano
+    assert "criar:comentarios" not in data["permissions"]
+
+    invalido = client.put(f"/users/{alvo_id}/role", json={"role": "plano-fantasma"}, headers=admin)
+    assert invalido.status_code == 400
+
+
+def test_admin_concede_e_revoga_permissoes_individuais():
+    alvo_id, _ = _criar_e_logar("perms@exemplo.com", "amigo-do-wilson")
+    _, admin = _criar_e_logar("admin-perms@exemplo.com", "admin")
+
+    resp = client.put(
+        f"/users/{alvo_id}/permissions",
+        json={"permissions": ["assistir:catalogo", "listar:comentarios", "listar:favoritos"]},
+        headers=admin,
+    )
+    assert resp.status_code == 200
+    perms = resp.json()["permissions"]
+    assert "listar:favoritos" in perms  # concedida além do plano
+    assert "detalhes:filmes" not in perms  # revogada do plano
+    assert resp.json()["role"] == "amigo-do-wilson"
+
+    # O login seguinte já carrega as permissões efetivas no JWT
+    login = client.post("/login", data={"username": "perms@exemplo.com", "password": "password123"})
+    assert set(login.json()["user"]["permissions"]) == {"assistir:catalogo", "listar:comentarios", "listar:favoritos"}
+
+    desconhecida = client.put(
+        f"/users/{alvo_id}/permissions", json={"permissions": ["voar:nave"]}, headers=admin
+    )
+    assert desconhecida.status_code == 400
+    assert "voar:nave" in desconhecida.json()["detail"]
+
+
+def test_admin_remove_usuario_e_nao_age_sobre_si_mesmo(emails_enviados):
+    alvo_id, _ = _criar_e_logar("remover@exemplo.com", "houston-temos-acesso")
+    admin_id, admin = _criar_e_logar("admin-remove@exemplo.com", "admin")
+
+    # Token de recuperação pendente e ajuste individual não impedem a remoção
+    client.post("/forgot-password", json={"email": "remover@exemplo.com"})
+    client.put(f"/users/{alvo_id}/permissions", json={"permissions": ["assistir:catalogo"]}, headers=admin)
+
+    assert client.delete(f"/users/{alvo_id}", headers=admin).status_code == 204
+    assert client.get(f"/users/{alvo_id}").status_code == 404
+    assert client.delete(f"/users/{alvo_id}", headers=admin).status_code == 404
+
+    assert client.delete(f"/users/{admin_id}", headers=admin).status_code == 400
+    assert client.put(f"/users/{admin_id}/role", json={"role": "amigo-do-wilson"}, headers=admin).status_code == 400
+
+    ids = [u["id"] for u in client.get("/users", headers=admin).json()]
+    assert alvo_id not in ids and admin_id in ids

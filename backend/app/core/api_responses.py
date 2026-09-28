@@ -83,6 +83,21 @@ NOT_FOUND_USER = {
     }
 }
 
+def gestao_usuario_invalida(**exemplos: str) -> dict:
+    """400 das rotas de gestão de usuários: ação sobre a própria conta, mais os exemplos da rota."""
+    todos = {"propria_conta": "Você não pode alterar ou remover a sua própria conta por aqui", **exemplos}
+    return {
+        400: {
+            "description": "Ação sobre a própria conta ou dados inválidos",
+            "content": {
+                "application/json": {
+                    "examples": {nome: {"value": {"detail": detail}} for nome, detail in todos.items()}
+                }
+            },
+        }
+    }
+
+
 RESET_TOKEN_INVALIDO = {
     400: {
         "description": "Token de redefinição inválido, expirado, já usado ou senha fraca",
