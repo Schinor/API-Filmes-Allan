@@ -49,7 +49,9 @@ export class AuthService {
 
   constructor(private http: HttpClient) {
     if (this._token()) {
-      this.carregarPerfil();
+      // Adiado: o interceptor injeta o AuthService, e chamá-lo ainda dentro do
+      // construtor gera NG0200 (dependência circular), o que apagava a sessão a cada F5
+      queueMicrotask(() => this.carregarPerfil());
     }
   }
 
