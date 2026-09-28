@@ -39,6 +39,21 @@ Inclui todas as permissões dos usuários comuns e também:
 - Gerenciar papéis e a matriz de permissões.
 - Administrar o sistema.
 
+### Página de usuários (`/usuarios`)
+
+Visível apenas para quem tem `gerenciar:usuarios` (na prática, o `admin`). Nela o
+administrador pode:
+
+- **Trocar o plano** de um usuário. As permissões voltam ao padrão do novo plano.
+- **Ajustar permissões individuais**, concedendo ou revogando permissões em relação ao
+  plano (tabela `user_permissions`). A tela indica o que é do plano, o que é extra e o
+  que foi removido.
+- **Remover o usuário**, o que também apaga os favoritos e comentários dele no catálogo.
+
+O administrador não pode alterar nem remover a própria conta por essa tela, para evitar
+ficar sem acesso. Como as permissões viajam no JWT, as mudanças valem a partir do
+próximo login do usuário afetado.
+
 O papel `admin` deve ser provisionado internamente ou atribuído por outro
 administrador autorizado. A API recusa com HTTP 403 qualquer tentativa de criar
 uma conta administrativa pelo endpoint público de cadastro.

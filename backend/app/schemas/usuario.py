@@ -86,6 +86,10 @@ class UserRoleUpdate(BaseModel):
     role: str
 
 
+class UserPermissionsUpdate(BaseModel):
+    permissions: List[str]
+
+
 class UserRoleOut(BaseModel):
     user_id: int
     role: str

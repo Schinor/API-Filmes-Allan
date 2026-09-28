@@ -9,6 +9,7 @@
       <a routerLink="/catalogo" routerLinkActive="active">Catálogo</a>
       <a *hasPermission="'listar:favoritos'" routerLink="/favoritos" routerLinkActive="active">Favoritos</a>
       <a *hasPermission="'listar:comentarios'" routerLink="/comentarios" routerLinkActive="active">Comentários</a>
+      <a *hasPermission="'gerenciar:usuarios'" routerLink="/usuarios" routerLinkActive="active">Usuários</a>
     </div>
     <div class="navbar-user">
       <div class="user-badge-container">

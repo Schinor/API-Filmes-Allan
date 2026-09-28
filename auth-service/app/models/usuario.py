@@ -17,12 +17,18 @@ class Usuario(Base):
 
     papel = relationship("Papel", back_populates="usuarios", lazy="joined")
     reset_tokens = relationship("ResetToken", back_populates="usuario", cascade="all, delete-orphan")
+    ajustes_permissao = relationship(
+        "UsuarioPermissao", back_populates="usuario", cascade="all, delete-orphan", lazy="selectin"
+    )
 
     @property
     def permissions(self) -> list[str]:
-        if self.papel and self.papel.permissoes:
-            return [f"{p.action}:{p.resource}" for p in self.papel.permissoes]
-        return []
+        """Permissões efetivas: as do papel, mais as concedidas e menos as revogadas individualmente."""
+        base = [f"{p.action}:{p.resource}" for p in self.papel.permissoes] if self.papel else []
+        concedidas = [a.permissao.slug for a in self.ajustes_permissao if a.concedida]
+        revogadas = {a.permissao.slug for a in self.ajustes_permissao if not a.concedida}
+        efetivas = [p for p in base if p not in revogadas]
+        return efetivas + [p for p in concedidas if p not in efetivas]
 
     @property
     def permissions_list(self) -> list[str]:

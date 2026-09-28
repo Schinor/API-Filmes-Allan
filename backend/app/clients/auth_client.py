@@ -35,6 +35,8 @@ async def forward_request(
                 except Exception:
                     detail = resp.text or "Erro no auth-service"
                 raise HTTPException(status_code=resp.status_code, detail=detail)
+            if resp.status_code == status.HTTP_204_NO_CONTENT or not resp.content:
+                return None
             return resp.json()
         except httpx.HTTPStatusError as exc:
             raise HTTPException(status_code=exc.response.status_code, detail="Erro no auth-service")

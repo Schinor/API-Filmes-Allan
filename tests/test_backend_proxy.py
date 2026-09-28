@@ -424,6 +424,60 @@ def test_logout_exige_jwt_e_registra_evento(monkeypatch):
     assert eventos == [{"acao": "logout", "usuario_id": 5, "recurso": None, "detalhes": None}]
 
 
+def test_admin_remove_usuario_limpa_favoritos_e_comentarios(monkeypatch):
+    from fastapi import HTTPException
+
+    app, TestingSessionLocal, current_user, TestClient = setup_catalogo_app()
+    from app.models.comentario import Comentario
+    from app.models.favoritos import Favorito
+
+    eventos = _capturar_eventos(monkeypatch)
+    client = TestClient(app)
+
+    db = TestingSessionLocal()
+    db.add_all([
+        Favorito(usuario_id=7, tmdb_movie_id=13, titulo="Forrest Gump"),
+        Comentario(usuario_id=7, tmdb_movie_id=13, texto="Corre, Forrest!"),
+        Comentario(usuario_id=8, tmdb_movie_id=13, texto="Fica"),
+    ])
+    db.commit()
+    db.close()
+
+    chamadas = []
+
+    async def auth_ok(method, path, **kw):
+        chamadas.append((method, path))
+        return None
+
+    monkeypatch.setattr("app.routes.auth.forward_request", auth_ok)
+
+    # Usuário comum é barrado antes de chegar ao auth-service
+    app.dependency_overrides[current_user] = lambda: _usuario(9, "capitao-hanks", ["assistir:catalogo"])
+    assert client.delete("/api/auth/users/7").status_code == 403
+    assert chamadas == []
+
+    app.dependency_overrides[current_user] = lambda: _usuario(1, "admin", ["gerenciar:usuarios"])
+    assert client.delete("/api/auth/users/7").status_code == 204
+    assert chamadas == [("DELETE", "/users/7")]
+    assert eventos[-1] == {"acao": "usuario_removido", "usuario_id": 1, "recurso": "usuario:7", "detalhes": None}
+
+    db = TestingSessionLocal()
+    assert db.query(Favorito).filter_by(usuario_id=7).count() == 0
+    assert db.query(Comentario).filter_by(usuario_id=7).count() == 0
+    assert db.query(Comentario).filter_by(usuario_id=8).count() == 1
+    db.close()
+
+    # Se o auth-service recusar, nada é apagado no catálogo
+    async def auth_recusa(method, path, **kw):
+        raise HTTPException(status_code=400, detail="Você não pode alterar ou remover a sua própria conta por aqui")
+
+    monkeypatch.setattr("app.routes.auth.forward_request", auth_recusa)
+    assert client.delete("/api/auth/users/8").status_code == 400
+    db = TestingSessionLocal()
+    assert db.query(Comentario).filter_by(usuario_id=8).count() == 1
+    db.close()
+
+
 def test_cliente_de_log_nunca_levanta_excecao_com_log_service_fora():
     import asyncio
 

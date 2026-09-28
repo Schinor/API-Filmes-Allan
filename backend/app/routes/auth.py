@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 from app.clients import log_client
 from app.clients.auth_client import forward_request
 from app.core.api_responses import (
@@ -12,8 +13,12 @@ from app.core.api_responses import (
     RESET_TOKEN_INVALIDO,
     UNAUTHORIZED,
     forbidden,
+    gestao_usuario_invalida,
 )
-from app.dependencies import current_user
+from app.core.database import get_db
+from app.dependencies import current_user, require_permission
+from app.models.comentario import Comentario
+from app.models.favoritos import Favorito
 from app.schemas.usuario import (
     UsuarioCreate,
     UsuarioOut,
@@ -25,6 +30,7 @@ from app.schemas.usuario import (
     ValidateTokenResponse,
     UserRoleOut,
     UserRoleUpdate,
+    UserPermissionsUpdate,
     PapelOut,
     PapelCreate,
     PermissaoOut,
@@ -158,16 +164,109 @@ async def list_users(request: Request):
 @router.put(
     "/users/{user_id}/role",
     response_model=UsuarioOut,
-    responses={**UNAUTHORIZED, **forbidden("gerenciar:usuarios"), **NOT_FOUND_USER, **AUTH_SERVICE_INDISPONIVEL},
+    responses={
+        **gestao_usuario_invalida(plano_inexistente="Plano inexistente"),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+        **AUTH_SERVICE_INDISPONIVEL,
+    },
 )
-async def update_user_role(user_id: int, payload: UserRoleUpdate, request: Request):
-    auth_header = request.headers.get("authorization")
-    return await forward_request(
+async def update_user_role(
+    user_id: int,
+    payload: UserRoleUpdate,
+    request: Request,
+    background: BackgroundTasks,
+    admin: dict = Depends(require_permission("gerenciar:usuarios")),
+):
+    resposta = await forward_request(
         "PUT",
         f"/users/{user_id}/role",
         json_data=payload.model_dump(),
-        headers={"authorization": auth_header} if auth_header else None,
+        headers={"authorization": request.headers.get("authorization")},
     )
+    background.add_task(
+        log_client.registrar,
+        "usuario_plano_alterado",
+        request,
+        usuario_id=admin["id"],
+        recurso=f"usuario:{user_id}",
+        detalhes=f"plano:{resposta.get('role')}",
+    )
+    return resposta
+
+
+@router.put(
+    "/users/{user_id}/permissions",
+    response_model=UsuarioOut,
+    responses={
+        **gestao_usuario_invalida(permissao_inexistente="Permissões inexistentes: voar:nave"),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+        **AUTH_SERVICE_INDISPONIVEL,
+    },
+)
+async def update_user_permissions(
+    user_id: int,
+    payload: UserPermissionsUpdate,
+    request: Request,
+    background: BackgroundTasks,
+    admin: dict = Depends(require_permission("gerenciar:usuarios")),
+):
+    resposta = await forward_request(
+        "PUT",
+        f"/users/{user_id}/permissions",
+        json_data=payload.model_dump(),
+        headers={"authorization": request.headers.get("authorization")},
+    )
+    background.add_task(
+        log_client.registrar,
+        "usuario_permissoes_alteradas",
+        request,
+        usuario_id=admin["id"],
+        recurso=f"usuario:{user_id}",
+        detalhes=",".join(resposta.get("permissions", []))[:500],
+    )
+    return resposta
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **gestao_usuario_invalida(),
+        **UNAUTHORIZED,
+        **forbidden("gerenciar:usuarios"),
+        **NOT_FOUND_USER,
+        **AUTH_SERVICE_INDISPONIVEL,
+    },
+)
+async def delete_user(
+    user_id: int,
+    request: Request,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_permission("gerenciar:usuarios")),
+):
+    """Remove a conta no auth-service e, em seguida, os favoritos e comentários dela no catálogo."""
+    await forward_request(
+        "DELETE",
+        f"/users/{user_id}",
+        headers={"authorization": request.headers.get("authorization")},
+    )
+    db.query(Favorito).filter(Favorito.usuario_id == user_id).delete()
+    db.query(Comentario).filter(Comentario.usuario_id == user_id).delete()
+    db.commit()
+
+    background.add_task(
+        log_client.registrar,
+        "usuario_removido",
+        request,
+        usuario_id=admin["id"],
+        recurso=f"usuario:{user_id}",
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/roles", response_model=List[PapelOut], responses={**AUTH_SERVICE_INDISPONIVEL})
