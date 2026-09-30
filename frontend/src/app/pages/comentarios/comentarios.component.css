@@ -308,3 +308,5 @@
 .spinner { border-color: var(--border-strong); border-top-color: var(--accent); }
 .empty-icon { color: var(--accent); font-family: var(--font-serif); }
 .empty p { color: var(--paper-muted); }
+.comment-author { color: var(--accent-light); font-size: .75rem; font-weight: 600; text-decoration: none; }
+.comment-author:hover { text-decoration: underline; }

@@ -1,0 +1,107 @@
+<div class="perfil-container">
+  @if (carregando()) {
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Carregando perfil...</p>
+    </div>
+  } @else if (erro()) {
+    <div class="empty">
+      <p>{{ erro() }}</p>
+      <a routerLink="/catalogo" class="btn-primary">Voltar ao catálogo</a>
+    </div>
+  } @else if (perfil(); as p) {
+    <section class="perfil-header">
+      <div class="avatar-wrap">
+        @if (editando() && preview()) {
+          <img class="avatar" [src]="preview()" alt="Pré-visualização da nova foto" />
+        } @else if (p.foto_url) {
+          <img class="avatar" [src]="p.foto_url" [alt]="'Foto de ' + p.nome" (error)="onFotoErro()" />
+        } @else {
+          <div class="avatar avatar-placeholder" aria-hidden="true">{{ inicial() }}</div>
+        }
+      </div>
+
+      <div class="perfil-info">
+        <div class="kicker-tag"><span class="kicker-dot"></span><span>PERFIL</span></div>
+        <h1>{{ p.nome }}</h1>
+
+        @if (!editando()) {
+          @if (p.bio) {
+            <p class="bio">{{ p.bio }}</p>
+          } @else {
+            <p class="bio bio-vazia">{{ p.pode_editar ? 'Você ainda não escreveu uma bio.' : 'Sem bio por enquanto.' }}</p>
+          }
+          @if (p.pode_editar) {
+            <div class="acoes">
+              <button type="button" class="btn-primary" (click)="iniciarEdicao()">Editar perfil</button>
+            </div>
+          }
+        } @else {
+          <form class="editor" (ngSubmit)="salvar()">
+            <label for="bio">Bio</label>
+            <textarea
+              id="bio"
+              name="bio"
+              rows="3"
+              [maxLength]="bioMax"
+              [ngModel]="bioRascunho()"
+              (ngModelChange)="bioRascunho.set($event)"
+              placeholder="Conte em poucas palavras quem você é no catálogo"
+            ></textarea>
+            <span class="contador" [class.no-limite]="bioRascunho().length >= bioMax">
+              {{ bioRascunho().length }}/{{ bioMax }}
+            </span>
+
+            <label for="foto">Foto (JPEG, PNG ou WEBP, até 2 MB)</label>
+            <input id="foto" type="file" [accept]="tiposAceitos" (change)="selecionarArquivo($event)" />
+
+            @if (erroEdicao()) {
+              <div class="alert alert-error" role="alert">{{ erroEdicao() }}</div>
+            }
+
+            <div class="acoes">
+              <button type="submit" class="btn-primary" [disabled]="salvando()">
+                {{ salvando() ? 'Salvando...' : 'Salvar' }}
+              </button>
+              <button type="button" class="btn-secondary" (click)="cancelarEdicao()" [disabled]="salvando()">
+                Cancelar
+              </button>
+              @if (p.foto_url) {
+                <button type="button" class="btn-danger" (click)="removerFoto()" [disabled]="salvando()">
+                  Remover foto
+                </button>
+              }
+            </div>
+          </form>
+        }
+      </div>
+    </section>
+
+    <section class="favoritos">
+      <h2>Filmes favoritos</h2>
+      @if (p.favoritos.length === 0) {
+        <p class="bio-vazia">{{ p.pode_editar ? 'Você ainda não favoritou nenhum filme.' : 'Nenhum filme favoritado ainda.' }}</p>
+        @if (p.pode_editar) {
+          <a routerLink="/catalogo" class="btn-primary">Explorar catálogo</a>
+        }
+      } @else {
+        <div class="fav-grid">
+          @for (fav of p.favoritos; track fav.tmdb_movie_id) {
+            <button type="button" class="fav-card" (click)="abrirFilme(fav)">
+              @if (fav.poster_path) {
+                <img [src]="'https://image.tmdb.org/t/p/w500' + fav.poster_path" [alt]="fav.titulo" />
+              } @else {
+                <div class="no-poster">SEM PÔSTER</div>
+              }
+              <span class="fav-titulo">{{ fav.titulo }}</span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (filmeAberto()) {
+    <app-movie-modal [filme]="filmeAberto()!" (fechar)="fecharModal()" />
+  }
+</div>

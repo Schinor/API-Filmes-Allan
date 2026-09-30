@@ -36,6 +36,16 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/comentarios/comentarios.component').then(m => m.ComentariosComponent),
   },
   {
+    path: 'perfil',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/perfil/perfil.component').then(m => m.PerfilComponent),
+  },
+  {
+    path: 'perfil/:id',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/perfil/perfil.component').then(m => m.PerfilComponent),
+  },
+  {
     path: 'usuarios',
     canActivate: [authGuard, permissionGuard('gerenciar:usuarios')],
     loadComponent: () => import('./pages/usuarios/usuarios.component').then(m => m.UsuariosComponent),

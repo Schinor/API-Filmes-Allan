@@ -71,6 +71,9 @@
                     <p class="comment-text">{{ c.texto }}</p>
                     <div class="comment-meta">
                       <span class="comment-date">{{ c.criado_em | date:'dd/MM/yyyy HH:mm' }}</span>
+                      @if (c.usuario_id) {
+                        <a class="comment-author" [routerLink]="['/perfil', c.usuario_id]">Perfil do autor</a>
+                      }
                       @if (c.usuario_id === auth.user()?.id || auth.hasPermission('apagar:comentario-de-outro')) {
                         <button
                           type="button"

@@ -9,11 +9,12 @@
       <a routerLink="/catalogo" routerLinkActive="active">Catálogo</a>
       <a *hasPermission="'listar:favoritos'" routerLink="/favoritos" routerLinkActive="active">Favoritos</a>
       <a *hasPermission="'listar:comentarios'" routerLink="/comentarios" routerLinkActive="active">Comentários</a>
+      <a routerLink="/perfil" routerLinkActive="active">Meu perfil</a>
       <a *hasPermission="'gerenciar:usuarios'" routerLink="/usuarios" routerLinkActive="active">Usuários</a>
     </div>
     <div class="navbar-user">
       <div class="user-badge-container">
-        <span class="user-name">{{ auth.user()?.nome }}</span>
+        <a class="user-name" routerLink="/perfil">{{ auth.user()?.nome }}</a>
         <span class="user-role-badge" [ngClass]="roleBadge.class"><i></i>{{ roleBadge.name }}</span>
       </div>
       <button class="btn-logout" (click)="logout()">Sair</button>
