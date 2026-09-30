@@ -4,7 +4,8 @@
 # Os valores CI_* são gerados em tempo de execução pelo workflow; nada aqui é segredo real.
 #
 # Uso local:
-#   export CI_SECRET_KEY=y CI_LOG_TOKEN=z
+#   export CI_SECRET_KEY=y CI_LOG_TOKEN=z CI_GARAGE_RPC_SECRET=$(openssl rand -hex 32) \
+#          CI_STORAGE_ACCESS_KEY=GK$(openssl rand -hex 16) CI_STORAGE_SECRET_KEY=$(openssl rand -hex 32)
 #   docker compose -f docker-compose.ci.yml up -d --build --wait
 #   docker compose -f docker-compose.ci.yml down -v
 
@@ -16,6 +17,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  garage:
+    build: ./garage
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: ${CI_GARAGE_RPC_SECRET}
+      GARAGE_DEFAULT_ACCESS_KEY: ${CI_STORAGE_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${CI_STORAGE_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: catalogo-avatares
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   auth-service:
     build: ./auth-service
@@ -62,10 +78,17 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8001
       LOG_SERVICE_URL: http://log-service:8002
       LOG_INTERNAL_TOKEN: ${CI_LOG_TOKEN}
+      STORAGE_ENDPOINT: http://garage:3900
+      STORAGE_REGION: garage
+      STORAGE_BUCKET: catalogo-avatares
+      STORAGE_ACCESS_KEY: ${CI_STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${CI_STORAGE_SECRET_KEY}
     depends_on:
       auth-service:
         condition: service_healthy
       log-service:
+        condition: service_healthy
+      garage:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]

@@ -27,10 +27,21 @@ services:
       - AUTH_SERVICE_URL=http://auth-service-dev:8001
       - LOG_SERVICE_URL=http://log-service:8002
       - LOG_INTERNAL_TOKEN=${LOG_INTERNAL_TOKEN}
+      - STORAGE_ENDPOINT=http://garage:3900
+      - STORAGE_REGION=garage
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-catalogo-avatares}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BANDA_MINIMA_KBPS=${STORAGE_BANDA_MINIMA_KBPS:-256}
+      - STORAGE_MARGEM_USO_SEGUNDOS=${STORAGE_MARGEM_USO_SEGUNDOS:-600}
+      - STORAGE_EXPIRACAO_MAX_SEGUNDOS=${STORAGE_EXPIRACAO_MAX_SEGUNDOS:-3600}
+      - PERFIL_FOTO_MAX_BYTES=${PERFIL_FOTO_MAX_BYTES:-2097152}
     depends_on:
       auth-service:
         condition: service_healthy
       log-service:
+        condition: service_healthy
+      garage:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
@@ -121,6 +132,32 @@ services:
       - filmes-network-dev
     restart: unless-stopped
 
+  garage:
+    build:
+      context: ./garage
+      dockerfile: Dockerfile
+    container_name: garage-dev
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - GARAGE_DEFAULT_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - GARAGE_DEFAULT_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - GARAGE_DEFAULT_BUCKET=${STORAGE_BUCKET:-catalogo-avatares}
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    expose:
+      - "3900"            # Sem "ports:" — acesso do navegador via /storage no catalogo
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
   prometheus:
     build:
       context: ./prometheus
@@ -158,3 +195,5 @@ networks:
 volumes:
   redis-data:
   grafana-data:
+  garage-meta:
+  garage-data:

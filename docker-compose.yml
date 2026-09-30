@@ -19,10 +19,21 @@ services:
       - GRAFANA_INTERNAL_URL=http://grafana:3000
       - PROMETHEUS_INTERNAL_URL=http://prometheus:9090
       - PROMETHEUS_PROXY_PASSWORD=${PROMETHEUS_PROXY_PASSWORD}
+      - STORAGE_ENDPOINT=http://garage:3900
+      - STORAGE_REGION=garage
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-catalogo-avatares}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BANDA_MINIMA_KBPS=${STORAGE_BANDA_MINIMA_KBPS:-256}
+      - STORAGE_MARGEM_USO_SEGUNDOS=${STORAGE_MARGEM_USO_SEGUNDOS:-600}
+      - STORAGE_EXPIRACAO_MAX_SEGUNDOS=${STORAGE_EXPIRACAO_MAX_SEGUNDOS:-3600}
+      - PERFIL_FOTO_MAX_BYTES=${PERFIL_FOTO_MAX_BYTES:-2097152}
     depends_on:
       auth-service:
         condition: service_healthy
       log-service:
+        condition: service_healthy
+      garage:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
@@ -109,6 +120,34 @@ services:
       - filmes-network
     restart: unless-stopped
 
+  garage:
+    image: ghcr.io/schinor/garage:${IMAGE_TAG:-latest}
+    container_name: garage-schinor
+    # --single-node: layout de 1 nó automático
+    # --default-bucket: cria chave de acesso + bucket a partir das variáveis (idempotente no restart)
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - GARAGE_DEFAULT_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - GARAGE_DEFAULT_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - GARAGE_DEFAULT_BUCKET=${STORAGE_BUCKET:-catalogo-avatares}
+    # garage.toml vem embutido na imagem (garage/Dockerfile), igual ao prometheus.yml
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    expose:
+      - "3900"            # Sem "ports:" — só a rede interna enxerga (acesso do navegador via /storage no catalogo)
+    healthcheck:
+      # imagem sem shell/curl: usa o próprio binário
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - filmes-network
+    restart: unless-stopped
+
   prometheus:
     image: ghcr.io/schinor/prometheus:${IMAGE_TAG:-latest}
     # --web.external-url: portas dedicadas (9090) não chegam pelo proxy do domínio público
@@ -171,3 +210,5 @@ networks:
 volumes:
   redis-data:
   grafana-data:
+  garage-meta:
+  garage-data:

@@ -23,10 +23,13 @@ jobs:
         run: |
           echo "CI_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           echo "CI_LOG_TOKEN=$(openssl rand -hex 16)" >> "$GITHUB_ENV"
+          echo "CI_GARAGE_RPC_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "CI_STORAGE_ACCESS_KEY=GK$(openssl rand -hex 16)" >> "$GITHUB_ENV"
+          echo "CI_STORAGE_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
       - name: Testes unitários (pytest)
         run: |
-          pip install -r backend/requirements.txt -r auth-service/requirements.txt -r log-service/requirements.txt pytest fakeredis
+          pip install -r backend/requirements.txt -r auth-service/requirements.txt -r log-service/requirements.txt pytest fakeredis "moto[s3]"
           pytest -q
 
       - name: Build e subida da stack (espera todos ficarem healthy)
@@ -45,6 +48,12 @@ jobs:
 
       - name: Teste 3 - /metrics do catálogo expõe métricas Prometheus
         run: curl --fail --silent http://localhost:8000/metrics | grep -q http_requests_total
+
+      - name: Teste 4 - ponte /storage existe e recusa URL sem assinatura
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/storage/catalogo-avatares/x.webp)
+          echo "/storage sem assinatura retornou $code"
+          test "$code" = "403"
 
       - name: Logs dos containers em caso de falha
         if: failure()
@@ -66,6 +75,7 @@ jobs:
           - { name: log-service, context: "./log-service", file: "log-service/Dockerfile" }
           - { name: prometheus, context: "./prometheus", file: "prometheus/Dockerfile" }
           - { name: grafana, context: "./grafana", file: "grafana/Dockerfile" }
+          - { name: garage, context: "./garage", file: "garage/Dockerfile" }
     steps:
       - uses: actions/checkout@v4
 
