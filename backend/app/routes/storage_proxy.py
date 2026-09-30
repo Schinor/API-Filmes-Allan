@@ -29,7 +29,8 @@ async def _fechar(resposta: httpx.Response, cliente: httpx.AsyncClient) -> None:
 @router.get(f"{storage.STORAGE_PUBLIC_PREFIX}/{{caminho:path}}")
 async def proxy_storage(caminho: str, request: Request):
     # raw_path = caminho ainda codificado, idêntico ao que entrou na assinatura
-    caminho_bruto = request.scope["raw_path"].decode("latin-1")
+    # (pela spec ASGI vem sem query, mas alguns servidores/test clients a incluem)
+    caminho_bruto = request.scope["raw_path"].decode("latin-1").split("?", 1)[0]
     caminho_upstream = caminho_bruto[len(storage.STORAGE_PUBLIC_PREFIX):]
 
     if not caminho_upstream.startswith(f"/{storage.STORAGE_BUCKET}/"):
