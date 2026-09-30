@@ -1,0 +1,28 @@
+from datetime import datetime, timezone
+from typing import Optional
+from sqlalchemy import Integer, String, DateTime, func
+from sqlalchemy.orm import Mapped, mapped_column
+from app.core.database import Base
+
+
+class Perfil(Base):
+    """Dados "sociais" do usuário no catálogo (a conta em si fica no auth-service).
+
+    A linha é criada sob demanda na primeira edição; sem linha = bio vazia e sem foto.
+    Sem FK para `usuarios`: a tabela pertence ao auth-service (mesmo critério de
+    favoritos/comentários); a limpeza na remoção do usuário é feita pela rota de exclusão.
+    """
+
+    __tablename__ = "perfis"
+
+    usuario_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    bio: Mapped[Optional[str]] = mapped_column(String(280), nullable=True)
+    # Só a CHAVE do objeto no bucket, nunca a URL (a URL assinada é gerada a cada leitura)
+    foto_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Tamanho em bytes, usado no cálculo da expiração da URL assinada
+    foto_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=func.now(),
+    )

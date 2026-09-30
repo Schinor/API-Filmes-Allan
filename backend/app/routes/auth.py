@@ -1,3 +1,4 @@
+import logging
 from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -19,6 +20,8 @@ from app.core.database import get_db
 from app.dependencies import current_user, require_permission
 from app.models.comentario import Comentario
 from app.models.favoritos import Favorito
+from app.models.perfil import Perfil
+from app.services import storage
 from app.schemas.usuario import (
     UsuarioCreate,
     UsuarioOut,
@@ -35,6 +38,8 @@ from app.schemas.usuario import (
     PapelCreate,
     PermissaoOut,
 )
+
+logger = logging.getLogger("catalogo.auth")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -231,6 +236,13 @@ async def update_user_permissions(
     return resposta
 
 
+def _apagar_foto_best_effort(chave: str) -> None:
+    try:
+        storage.apagar_objeto(chave)
+    except Exception:
+        logger.warning("não foi possível apagar a foto %s do usuário removido", chave)
+
+
 @router.delete(
     "/users/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -249,7 +261,7 @@ async def delete_user(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_permission("gerenciar:usuarios")),
 ):
-    """Remove a conta no auth-service e, em seguida, os favoritos e comentários dela no catálogo."""
+    """Remove a conta no auth-service e, em seguida, favoritos, comentários e perfil (com a foto) no catálogo."""
     await forward_request(
         "DELETE",
         f"/users/{user_id}",
@@ -257,7 +269,14 @@ async def delete_user(
     )
     db.query(Favorito).filter(Favorito.usuario_id == user_id).delete()
     db.query(Comentario).filter(Comentario.usuario_id == user_id).delete()
+    perfil = db.get(Perfil, user_id)
+    foto_key = perfil.foto_key if perfil else None
+    if perfil:
+        db.delete(perfil)
     db.commit()
+
+    if foto_key:
+        background.add_task(_apagar_foto_best_effort, foto_key)
 
     background.add_task(
         log_client.registrar,

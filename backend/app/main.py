@@ -22,6 +22,8 @@ from app.routes.favoritos import router as favoritos_router
 from app.routes.comentarios import router as comentarios_router
 from app.routes.logs import router as logs_router
 from app.routes.observability_proxy import router as observability_router
+from app.routes.perfis import router as perfis_router
+from app.routes.storage_proxy import router as storage_router
 
 # Cria as tabelas (idempotente se já existirem)
 Base.metadata.create_all(bind=engine)
@@ -47,8 +49,10 @@ app.include_router(filmes_router)
 app.include_router(favoritos_router)
 app.include_router(comentarios_router)
 app.include_router(logs_router)
-# Precisa vir antes do fallback da SPA (abaixo) para /grafana e /prometheus não caírem no index.html.
+app.include_router(perfis_router)
+# Precisam vir antes do fallback da SPA (abaixo) para /grafana, /prometheus e /storage não caírem no index.html.
 app.include_router(observability_router)
+app.include_router(storage_router)
 
 
 

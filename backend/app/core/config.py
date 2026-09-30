@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     GRAFANA_INTERNAL_URL: str = "http://grafana:3000"
     PROMETHEUS_INTERNAL_URL: str = "http://prometheus:9090"
     PROMETHEUS_PROXY_PASSWORD: str = ""
+    # Object storage (Garage, API S3) — foto de perfil
+    STORAGE_ENDPOINT: str = "http://garage:3900"
+    STORAGE_REGION: str = "garage"
+    STORAGE_BUCKET: str = "catalogo-avatares"
+    STORAGE_ACCESS_KEY: str = ""
+    STORAGE_SECRET_KEY: str = ""
+    STORAGE_BANDA_MINIMA_KBPS: int = 256
+    STORAGE_MARGEM_USO_SEGUNDOS: int = 600
+    STORAGE_EXPIRACAO_MAX_SEGUNDOS: int = 3600
+    PERFIL_FOTO_MAX_BYTES: int = 2 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=(".env", "../.env", "../../.env"), extra="ignore")
 
