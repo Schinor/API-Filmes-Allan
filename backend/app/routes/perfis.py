@@ -32,7 +32,7 @@ from app.clients.auth_client import forward_request
 from app.core.api_responses import AUTH_SERVICE_INDISPONIVEL, NOT_FOUND_USER, UNAUTHORIZED
 from app.core.config import settings
 from app.core.database import get_db
-from app.dependencies import current_user
+from app.dependencies import current_user, negar_acesso
 from app.models.perfil import Perfil
 from app.repositories import favorito_repo, perfil_repo
 from app.schemas.perfil import PerfilBioUpdate, PerfilOut
@@ -107,15 +107,7 @@ async def _montar_perfil(db: Session, usuario_id: int, user: dict, perfil: Optio
 async def garantir_dono(usuario_id_rota: int, user: dict, request: Request) -> None:
     """Compara o id da rota com o id do JWT. Nenhum papel/permissão abre exceção."""
     if usuario_id_rota != user["id"]:
-        # Await direto: BackgroundTasks se perde quando a rota levanta exceção
-        await log_client.registrar(
-            "acesso_negado",
-            request,
-            usuario_id=user["id"],
-            recurso=f"perfil:{usuario_id_rota}",
-            detalhes=f"{request.method} {request.url.path}",
-        )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Você só pode editar o próprio perfil")
+        raise negar_acesso(request, user["id"], f"perfil:{usuario_id_rota}", "Você só pode editar o próprio perfil")
 
 
 def _checar_limite_upload(usuario_id: int) -> None:

@@ -33,6 +33,40 @@ async def current_user(authorization: Optional[str] = Header(default=None)) -> d
     return await get_authenticated_user(authorization)
 
 
+def negar_acesso(request: Request, usuario_id: Optional[int], recurso: str, detail: str) -> HTTPException:
+    """Monta o 403 e anota quem/o quê para a auditoria.
+
+    Quem registra o evento 'acesso_negado' é o handler global de 403 (app.main),
+    que vale para TODA resposta 403 do catálogo — inclusive as repassadas do auth-service.
+    """
+    request.state.acesso_negado = {"usuario_id": usuario_id, "recurso": recurso}
+    return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+def _usuario_id_do_token(request: Request) -> Optional[int]:
+    authorization = request.headers.get("authorization") or ""
+    try:
+        sub = decode_token(authorization.replace("Bearer ", "").replace("bearer ", "").strip()).get("sub")
+        return int(sub) if sub else None
+    except Exception:
+        return None
+
+
+async def auditar_acesso_negado(request: Request) -> None:
+    contexto = getattr(request.state, "acesso_negado", None) or {}
+    usuario_id = contexto.get("usuario_id")
+    if usuario_id is None:
+        # 403 sem contexto (ex.: repassado do auth-service): identifica pelo JWT, se houver
+        usuario_id = _usuario_id_do_token(request)
+    await log_client.registrar(
+        "acesso_negado",
+        request,
+        usuario_id=usuario_id,
+        recurso=contexto.get("recurso"),
+        detalhes=f"{request.method} {request.url.path}",
+    )
+
+
 def require_permission(permission: str) -> Callable:
     async def dependency(request: Request, user: dict = Depends(current_user)) -> dict:
         user_permissions = user.get("permissions", [])
@@ -41,17 +75,11 @@ def require_permission(permission: str) -> Callable:
             permission not in user_permissions
             and "administrar:sistema" not in user_permissions
         ):
-            # Await direto: BackgroundTasks se perde quando a rota levanta exceção
-            await log_client.registrar(
-                "acesso_negado",
+            raise negar_acesso(
                 request,
-                usuario_id=user.get("id"),
-                recurso=permission,
-                detalhes=f"{request.method} {request.url.path}",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Acesso negado: permissão '{permission}' necessária",
+                user.get("id"),
+                permission,
+                f"Acesso negado: permissão '{permission}' necessária",
             )
         return user
     return dependency

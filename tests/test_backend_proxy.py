@@ -259,13 +259,31 @@ def _mock_log_service(monkeypatch, handler):
     )
 
 
-def test_health_e_metrics_do_catalogo():
+def _mock_dependencias_health(monkeypatch, auth_status=200, storage_status=403):
+    """auth-service e Garage simulados; None = serviço fora do ar."""
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        codigo = auth_status if request.url.host == "auth-service" else storage_status
+        if codigo is None:
+            raise httpx.ConnectError("sem rota", request=request)
+        return httpx.Response(codigo)
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.main.httpx.AsyncClient",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+
+
+def test_health_e_metrics_do_catalogo(monkeypatch):
     app, _, _, TestClient = setup_catalogo_app()
+    _mock_dependencias_health(monkeypatch)
     client = TestClient(app)
 
     health = client.get("/health")
     assert health.status_code == 200
-    assert health.json() == {"status": "healthy", "db": "up"}
+    assert health.json() == {"status": "healthy", "db": "up", "auth_service": "up", "storage": "up"}
 
     client.get("/api/docs")
     metrics = client.get("/metrics")
@@ -282,10 +300,46 @@ def test_health_retorna_503_quando_banco_cai(monkeypatch):
         def connect(self):
             raise RuntimeError("banco indisponível")
 
+    _mock_dependencias_health(monkeypatch)
     monkeypatch.setattr(main_mod, "engine", BancoFora())
     resp = TestClient(app).get("/health")
     assert resp.status_code == 503
     assert resp.json()["status"] == "unhealthy"
+    assert resp.json()["db"] == "down"
+
+
+@pytest.mark.parametrize(
+    "auth_status, storage_status, campo",
+    [(None, 403, "auth_service"), (503, 403, "auth_service"), (200, None, "storage"), (200, 502, "storage")],
+)
+def test_health_retorna_503_quando_auth_service_ou_storage_caem(monkeypatch, auth_status, storage_status, campo):
+    app, _, _, TestClient = setup_catalogo_app()
+    _mock_dependencias_health(monkeypatch, auth_status=auth_status, storage_status=storage_status)
+
+    resp = TestClient(app).get("/health")
+    assert resp.status_code == 503
+    assert resp.json()["status"] == "unhealthy"
+    assert resp.json()[campo] == "down"
+
+
+def test_403_repassado_do_auth_service_tambem_gera_acesso_negado(monkeypatch):
+    from fastapi import HTTPException
+    from jose import jwt
+
+    app, _, _, TestClient = setup_catalogo_app()
+    eventos = _capturar_eventos(monkeypatch)
+
+    async def auth_nega(method, path, **kw):
+        raise HTTPException(status_code=403, detail="Acesso negado: permissão 'gerenciar:usuarios' necessária")
+
+    monkeypatch.setattr("app.routes.auth.forward_request", auth_nega)
+    token = jwt.encode({"sub": "5"}, os.environ["SECRET_KEY"], algorithm="HS256")
+
+    resp = TestClient(app).get("/api/auth/users", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403
+    assert eventos == [
+        {"acao": "acesso_negado", "usuario_id": 5, "recurso": None, "detalhes": "GET /api/auth/users"}
+    ]
 
 
 def test_api_logs_usuario_comum_recebe_403_e_gera_acesso_negado(monkeypatch):

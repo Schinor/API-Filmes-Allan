@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.clients import log_client
 from app.core.api_responses import COMENTARIO_NAO_ENCONTRADO, UNAUTHORIZED, forbidden
 from app.core.database import get_db
-from app.dependencies import current_user, require_permission
+from app.dependencies import current_user, negar_acesso, require_permission
 from app.models.comentario import Comentario
 from app.repositories import comentario_repo
 from app.schemas.comentario import ComentarioCreate, ComentarioOut
@@ -96,29 +96,22 @@ async def deletar_comentario(
     if not comentario:
         raise HTTPException(status_code=404, detail="Comentário não encontrado")
 
+    # Só permissões decidem (o papel 'admin' as recebe pelo seed do auth-service)
     user_perms = user.get("permissions", [])
-    user_role = user.get("role", "")
 
     e_dono = comentario.usuario_id == user["id"]
-    pode_apagar_proprio = e_dono and ("apagar:comentario-proprio" in user_perms or user_role == "admin")
+    pode_apagar_proprio = e_dono and "apagar:comentario-proprio" in user_perms
     pode_moderar = (
         "apagar:comentario-de-outro" in user_perms
         or "administrar:sistema" in user_perms
-        or user_role == "admin"
     )
 
     if not (pode_apagar_proprio or pode_moderar):
-        # Await direto: BackgroundTasks se perde quando a rota levanta exceção
-        await log_client.registrar(
-            "acesso_negado",
+        raise negar_acesso(
             request,
-            usuario_id=user["id"],
-            recurso=f"comentario:{comentario_id}",
-            detalhes=f"{request.method} {request.url.path}",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas o autor ou um administrador podem remover este comentário",
+            user["id"],
+            f"comentario:{comentario_id}",
+            "Apenas o autor ou um administrador podem remover este comentário",
         )
 
     db.delete(comentario)
