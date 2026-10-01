@@ -512,7 +512,8 @@ def test_admin_remove_usuario_limpa_favoritos_e_comentarios(monkeypatch):
 
     app.dependency_overrides[current_user] = lambda: _usuario(1, "admin", ["gerenciar:usuarios"])
     assert client.delete("/api/auth/users/7").status_code == 204
-    assert chamadas == [("DELETE", "/users/7")]
+    # Confere a existência, limpa o catálogo e só então apaga a conta (FK RESTRICT em produção)
+    assert chamadas == [("GET", "/users/7"), ("DELETE", "/users/7")]
     assert eventos[-1] == {"acao": "usuario_removido", "usuario_id": 1, "recurso": "usuario:7", "detalhes": None}
 
     db = TestingSessionLocal()
@@ -527,6 +528,16 @@ def test_admin_remove_usuario_limpa_favoritos_e_comentarios(monkeypatch):
 
     monkeypatch.setattr("app.routes.auth.forward_request", auth_recusa)
     assert client.delete("/api/auth/users/8").status_code == 400
+    db = TestingSessionLocal()
+    assert db.query(Comentario).filter_by(usuario_id=8).count() == 1
+    db.close()
+
+    # Admin tentando apagar a própria conta: recusado no catálogo, sem chamar o auth-service
+    monkeypatch.setattr("app.routes.auth.forward_request", auth_ok)
+    chamadas.clear()
+    app.dependency_overrides[current_user] = lambda: _usuario(8, "admin", ["gerenciar:usuarios"])
+    assert client.delete("/api/auth/users/8").status_code == 400
+    assert chamadas == []
     db = TestingSessionLocal()
     assert db.query(Comentario).filter_by(usuario_id=8).count() == 1
     db.close()

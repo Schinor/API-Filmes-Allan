@@ -261,12 +261,20 @@ async def delete_user(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_permission("gerenciar:usuarios")),
 ):
-    """Remove a conta no auth-service e, em seguida, favoritos, comentários e perfil (com a foto) no catálogo."""
-    await forward_request(
-        "DELETE",
-        f"/users/{user_id}",
-        headers={"authorization": request.headers.get("authorization")},
-    )
+    """Remove favoritos, comentários e perfil (com a foto) no catálogo e, em seguida, a conta no auth-service.
+
+    O catálogo limpa ANTES porque, no MariaDB de produção, favoritos e comentarios têm
+    FK RESTRICT para usuarios: apagar a conta primeiro falharia para quem tem dados.
+    Por isso as recusas do auth-service (própria conta, usuário inexistente) são
+    conferidas antes de apagar qualquer coisa.
+    """
+    if user_id == admin["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode alterar ou remover a sua própria conta por aqui",
+        )
+    await forward_request("GET", f"/users/{user_id}")  # 404 se não existir
+
     db.query(Favorito).filter(Favorito.usuario_id == user_id).delete()
     db.query(Comentario).filter(Comentario.usuario_id == user_id).delete()
     perfil = db.get(Perfil, user_id)
@@ -274,6 +282,12 @@ async def delete_user(
     if perfil:
         db.delete(perfil)
     db.commit()
+
+    await forward_request(
+        "DELETE",
+        f"/users/{user_id}",
+        headers={"authorization": request.headers.get("authorization")},
+    )
 
     if foto_key:
         background.add_task(_apagar_foto_best_effort, foto_key)
