@@ -7,6 +7,19 @@ Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Ha
 
 🔗 **Aplicação em produção (Portainer):** **https://marcio-mazega-isw055.lapps.studio**
 
+### 🗂️ Atividades e onde estão neste README
+
+| Nº | Atividade | Seções |
+|---|---|---|
+| 2 | Catálogo de filmes Tom Hanks (TMDB, favoritos, comentários, segregação por usuário) | [Evolução arquitetural](#️-evolução-arquitetural-monólito--microsserviços), [Modelo de dados](#️-modelo-de-dados-schema) |
+| 3 | Microsserviço de autenticação + esqueci minha senha | [Evolução arquitetural](#️-evolução-arquitetural-monólito--microsserviços), [Recuperação de senha](#-demonstração-do-fluxo-de-recuperação-de-senha), [Docker Compose](#-docker-compose--configuração-dos-serviços) |
+| 4 | RBAC | [Controle de acesso (RBAC)](#️-controle-de-acesso-baseado-em-papel-rbac) |
+| 5 | Logs e auditoria | [Auditoria: log-service + Redis Streams](#-auditoria-log-service--redis-streams) |
+| 6 | Upload e perfil | [Perfil de usuário e object storage (Garage)](#️-perfil-de-usuário-e-object-storage-garage) |
+| Extra | Swagger/OpenAPI | [Documentação da API](#-documentação-da-api-swagger--openapi) |
+| Extra | CI/CD | [CI/CD com GitHub Actions](#-cicd-com-github-actions) |
+| Extra | Observabilidade | [Observabilidade](#-observabilidade-health-checks-e-métricas) |
+
 ---
 
 ## 🏛️ Evolução Arquitetural: Monólito ➔ Microsserviços
@@ -328,7 +341,8 @@ Dois serviços documentados de ponta a ponta: **catálogo** e **auth-service**.
 
 | Serviço | Swagger UI | Redoc |
 |---|---|---|
-| catalogo | `http://localhost:8000/api/docs` | `http://localhost:8000/api/redoc` |
+| catalogo (produção) | **https://marcio-mazega-isw055.lapps.studio/api/docs** | https://marcio-mazega-isw055.lapps.studio/api/redoc |
+| catalogo (local) | `http://localhost:8000/api/docs` | `http://localhost:8000/api/redoc` |
 | auth-service | `http://localhost:8001/docs` *(só na rede interna do Docker — sem porta publicada no host)* | `http://localhost:8001/redoc` |
 
 Cada rota, nos dois serviços, documenta:
@@ -385,7 +399,7 @@ Admin → GET /api/logs (catalogo, exige RBAC) ─┘ GET /eventos
 | `perfil_atualizado` | `PUT /api/perfis/{id}` (200) | `recurso=perfil:<id>` |
 | `perfil_foto_atualizada` | `PUT /api/perfis/{id}/foto` (200) | `recurso=perfil:<id>`, `detalhes=<chave do objeto>` |
 | `perfil_foto_removida` | `DELETE /api/perfis/{id}/foto` (204, havia foto) | `recurso=perfil:<id>` |
-| `acesso_negado` | `require_permission`, ramo 403 do `DELETE` de comentário e edição de perfil alheio | `recurso=<permissão>`, `comentario:<id>` ou `perfil:<id alvo>`; `detalhes=<método> <rota>` |
+| `acesso_negado` | **Toda** resposta 403 do catálogo, pelo handler global de exceções (`app/main.py` → `auditar_acesso_negado`): `require_permission`, `DELETE` de comentário alheio, edição de perfil alheio e também os 403 repassados do auth-service (ex.: `GET /api/auth/users` sem `gerenciar:usuarios`, cadastro pedindo `admin`) | `recurso=<permissão>`, `comentario:<id>` ou `perfil:<id alvo>` (vazio quando o 403 vem do auth-service); `usuario_id` lido do JWT; `detalhes=<método> <rota>` |
 
 Todo evento carrega `usuario_id` (quando há), `acao`, `origem`, `timestamp` (UTC, ISO 8601) e `ip`.
 
@@ -419,7 +433,7 @@ login_falhou   -      email:naoexiste@teste.com
 
 | Serviço | Dependência testada | Falha |
 |---|---|---|
-| catalogo | MariaDB (`SELECT 1`) | `503 {"status":"unhealthy","db":"down"}` |
+| catalogo | MariaDB (`SELECT 1`), auth-service (`GET /health` = 200) e Garage (responde na `:3900`), em paralelo | `503 {"status":"unhealthy","db":"up","auth_service":"down","storage":"up"}` (o campo da dependência que caiu vem `down`) |
 | auth-service | MariaDB (`SELECT 1`) | `503 {"status":"unhealthy","db":"down",...}` |
 | log-service | Redis (`PING`) | `503 {"status":"unhealthy","redis":"down"}` |
 
@@ -617,6 +631,8 @@ Workflow: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
 
 O `docker-compose.yml` referencia `ghcr.io/schinor/<serviço>:${IMAGE_TAG:-latest}`. Para o deploy automático, crie a stack no Portainer a partir do repositório e ligue *Automatic updates* (polling ou webhook). Para fixar uma versão específica, defina `IMAGE_TAG=sha-<commit>` na stack.
 
+Execução verde de referência (commit `ebfba41`, que publicou `sha-ebfba41` + `latest`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/36744055742
+
 ![Execuções do workflow CI/CD no GitHub Actions, todas com sucesso](assets/SiteCICD.png)
 
 ### Pendências
@@ -628,14 +644,54 @@ O `docker-compose.yml` referencia `ghcr.io/schinor/<serviço>:${IMAGE_TAG:-lates
 ## 🗄️ Modelo de Dados (Schema)
 
 ```sql
--- Tabela de Usuários (com coluna role)
+-- ── auth-service ────────────────────────────────────────────────────────────
+
+-- Permissões no formato ação:recurso (ex.: apagar:comentario-de-outro)
+CREATE TABLE permissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  action VARCHAR(50) NOT NULL,
+  resource VARCHAR(50) NOT NULL,
+  description VARCHAR(255),
+  UNIQUE (action, resource)
+);
+
+-- Papéis (amigo-do-wilson, preso-no-terminal, houston-temos-acesso, capitao-hanks, admin)
+CREATE TABLE roles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  slug VARCHAR(50) UNIQUE NOT NULL,
+  description VARCHAR(255)
+);
+
+-- Mapeamento papel → permissões (populado pelo seed em auth-service/app/core/rbac_seed.py)
+CREATE TABLE role_permissions (
+  role_id INT NOT NULL,
+  permission_id INT NOT NULL,
+  PRIMARY KEY (role_id, permission_id),
+  FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+  FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+);
+
+-- Usuários (role = slug do papel; role_id aponta para roles)
 CREATE TABLE usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(100) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
   senha_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL DEFAULT 'usuario',
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  role VARCHAR(50) NOT NULL DEFAULT 'amigo-do-wilson',
+  role_id INT NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL
+);
+
+-- Ajustes individuais: concede (concedida = TRUE) ou revoga (FALSE) uma permissão em relação ao papel
+CREATE TABLE user_permissions (
+  usuario_id INT NOT NULL,
+  permission_id INT NOT NULL,
+  concedida BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (usuario_id, permission_id),
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
 );
 
 -- Tabela de Tokens de Recuperação de Senha
@@ -648,6 +704,8 @@ CREATE TABLE reset_tokens (
   usado BOOLEAN NOT NULL DEFAULT FALSE,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
+
+-- ── catálogo ────────────────────────────────────────────────────────────────
 
 -- Tabela de Favoritos (isolada por usuario_id)
 CREATE TABLE favoritos (
@@ -695,6 +753,29 @@ CREATE TABLE perfis (
 | **`houston-temos-acesso`** | Tudo de `preso-no-terminal`; criar comentários e apagar os próprios comentários. |
 | **`capitao-hanks`** | Tudo de `houston-temos-acesso`; acessar o catálogo premium. |
 | **`admin`** | Todas as permissões anteriores; **apagar comentários de qualquer usuário**; listar e gerenciar usuários; alterar papéis; gerenciar a matriz de permissões e administrar o sistema. |
+
+Permissões de cada papel, no formato `ação:recurso` (fonte única: [`auth-service/app/core/rbac_seed.py`](auth-service/app/core/rbac_seed.py)):
+
+| Permissão | `amigo-do-wilson` | `preso-no-terminal` | `houston-temos-acesso` | `capitao-hanks` | `admin` |
+|---|:-:|:-:|:-:|:-:|:-:|
+| `assistir:catalogo` | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `detalhes:filmes` | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `listar:comentarios` | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `listar:favoritos` | | ✔ | ✔ | ✔ | ✔ |
+| `adicionar:favoritos` | | ✔ | ✔ | ✔ | ✔ |
+| `remover:favoritos` | | ✔ | ✔ | ✔ | ✔ |
+| `criar:comentarios` | | | ✔ | ✔ | ✔ |
+| `apagar:comentario-proprio` | | | ✔ | ✔ | ✔ |
+| `assistir:catalogo-premium` | | | | ✔ | ✔ |
+| `apagar:comentario-de-outro` | | | | | ✔ |
+| `visualizar:usuarios` | | | | | ✔ |
+| `gerenciar:usuarios` | | | | | ✔ |
+| `gerenciar:papeis` | | | | | ✔ |
+| `gerenciar:permissoes` | | | | | ✔ |
+| `visualizar:logs` | | | | | ✔ |
+| `administrar:sistema` | | | | | ✔ |
+
+No catálogo, as rotas não testam o nome do papel: `require_permission("<ação:recurso>")` ([`backend/app/dependencies.py`](backend/app/dependencies.py)) confere a permissão dentro do JWT. O `admin` passa porque recebe as permissões pelo seed (e `administrar:sistema` libera qualquer uma).
 
 Os quatro primeiros são papéis de usuário comum disponíveis no cadastro público. O papel
 `admin` não aparece no formulário e uma tentativa de enviá-lo diretamente para
