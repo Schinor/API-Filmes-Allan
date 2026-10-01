@@ -108,6 +108,13 @@ Ao clicar no link do e-mail, a rota pública do catálogo (`/reset-password?toke
 
 ---
 
+### 4. Link Expirado Recusado
+O token é recusado se não existir, se já tiver sido usado (`usado = true` após a troca) ou se `agora >= expira_em` (30 minutos após a criação). Para testar sem esperar, basta forçar a expiração no banco (`UPDATE reset_tokens SET expira_em = NOW() - INTERVAL 1 MINUTE WHERE token = '<TOKEN>';`) e abrir o link:
+
+![Link de recuperação expirado sendo recusado](assets/Site_Funcionando3.png)
+
+---
+
 ## 🐳 Docker Compose — Configuração dos Serviços
 
 Trecho do `docker-compose.yml` ilustrando os dois serviços e a rede compartilhada `filmes-network`:
