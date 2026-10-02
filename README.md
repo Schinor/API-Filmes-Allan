@@ -625,9 +625,16 @@ usuario_id | foto_key                                           | foto_bytes
 1          | avatares/1/c271d378fd4046999ed8687d7d6d201c.webp   | 15782
 ```
 
-> 📸 **Pendente:** saída do `scripts/demo_perfil.sh` com os dois **403** de edição alheia.
+Saída do `scripts/demo_perfil.sh` contra **produção** (contas de teste A = 13 e B = 14; senhas ocultadas): upload de A (200), download pela URL assinada (200 `image/webp`), A editando a bio e a foto de B (**403** nos dois) e URL com a assinatura adulterada recusada pelo Garage (**403**):
 
-> 📸 **Pendente:** URL adulterada/expirada recusada (403 do Garage).
+![demo_perfil.sh em produção: 403 na edição alheia e na URL adulterada](assets/SiteGarageScript.png)
+
+Antes e depois do script: A ganha a foto enviada; B continua sem foto, porque as duas tentativas de A foram recusadas.
+
+| | Antes | Depois |
+|---|---|---|
+| **A** (`/perfil/13`) | ![Perfil de A antes do script](assets/SiteImagemAntesScriptUserA.png) | ![Perfil de A depois do script, com a foto](assets/SiteImagemDepoisScriptUserA.png) |
+| **B** (`/perfil/14`) | ![Perfil de B antes do script](assets/SiteImagemAntesScriptUserB.png) | ![Perfil de B depois do script, ainda sem foto](assets/SiteImagemDepoisScriptUserB.png) |
 
 > 📸 **Pendente:** persistência — a foto continua aparecendo depois de recriar a stack (`docker compose down && docker compose up -d`, sem `-v`).
 
