@@ -463,10 +463,15 @@ Os três serviços expõem `/metrics` via `prometheus-fastapi-instrumentator` (`
 
 > ⚠️ O catálogo tem a porta pública, então `/metrics` fica acessível por ela. Em produção real, bloqueie a rota no proxy de borda e deixe só o Prometheus raspar pela rede interna.
 
+![/metrics do catálogo em produção (contagem por rota/status)](assets/SiteMetricsGrafana.png)
+
 ### Prometheus + Grafana (bônus)
 
 - Prometheus: `http://localhost:9090` localmente (`docker-compose.dev.yml`), ou https://marcio-mazega-isw055.lapps.studio/prometheus em produção (HTTP Basic `admin` / `PROMETHEUS_PROXY_PASSWORD` — ver [proxy](#-docker-compose--configuração-dos-serviços)). `prometheus.yml` raspa `catalogo:8000`, `auth-service:8001`, `log-service:8002`; em `/targets` os três devem estar `UP`.
 - Grafana: `http://localhost:3000` localmente (`docker-compose.dev.yml`), ou https://marcio-mazega-isw055.lapps.studio/grafana em produção (usuário `admin`, senha em `GRAFANA_ADMIN_PASSWORD`). A fonte de dados e o painel **HANKS+ — Serviços** (requisições/min, erros 4xx/5xx e latência p95) já vêm provisionados em `grafana/`.
+
+![Prometheus em produção: os três alvos UP](assets/SitePrometheusContainers.png)
+![Painel HANKS+ — Serviços no Grafana: requisições/min, erros 4xx/5xx e latência p95](assets/SiteGrafanaDashboard.png)
 
 ---
 
@@ -594,11 +599,16 @@ Para ver a expiração real, suba o catálogo com `STORAGE_MARGEM_USO_SEGUNDOS=0
 
 ### 7. Evidências
 
-> 📸 **Pendente:** página de perfil com a foto enviada aparecendo.
+![Página de perfil em produção com a foto enviada, bio e favoritos](assets/SitePerfilFoto.png)
 
 > 📸 **Pendente:** objeto no bucket — `docker exec garage-schinor /garage bucket info catalogo-avatares` (contagem de objetos/tamanho) ou console do Portainer.
 
-> 📸 **Pendente:** `SELECT usuario_id, foto_key, foto_bytes FROM perfis;` mostrando só a chave.
+`SELECT usuario_id, foto_key, foto_bytes FROM perfis;` no MariaDB de produção (02/10/2026), mostrando que o banco guarda só a chave:
+
+```
+usuario_id | foto_key                                           | foto_bytes
+1          | avatares/1/c271d378fd4046999ed8687d7d6d201c.webp   | 15782
+```
 
 > 📸 **Pendente:** saída do `scripts/demo_perfil.sh` com os dois **403** de edição alheia.
 
