@@ -11,7 +11,7 @@ Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Ha
 
 | Nº | Atividade | Seções |
 |---|---|---|
-| 2 | Catálogo de filmes Tom Hanks (TMDB, favoritos, comentários, segregação por usuário) | [Evolução arquitetural](#️-evolução-arquitetural-monólito--microsserviços), [Modelo de dados](#️-modelo-de-dados-schema) |
+| 2 | Catálogo de filmes Tom Hanks (TMDB, favoritos, comentários, segregação por usuário) | [Catálogo e segregação](#-catálogo-e-segregação-por-usuário), [Evolução arquitetural](#️-evolução-arquitetural-monólito--microsserviços), [Modelo de dados](#️-modelo-de-dados-schema) |
 | 3 | Microsserviço de autenticação + esqueci minha senha | [Evolução arquitetural](#️-evolução-arquitetural-monólito--microsserviços), [Recuperação de senha](#-demonstração-do-fluxo-de-recuperação-de-senha), [Docker Compose](#-docker-compose--configuração-dos-serviços) |
 | 4 | RBAC | [Controle de acesso (RBAC)](#️-controle-de-acesso-baseado-em-papel-rbac) |
 | 5 | Logs e auditoria | [Auditoria: log-service + Redis Streams](#-auditoria-log-service--redis-streams) |
@@ -82,6 +82,19 @@ Na **Atividade 6**, a stack ganhou um **object storage S3 compatível (Garage)**
 1. **Isolamento Real de Responsabilidades:** Regras de negócio de catálogo e autenticação rodam em processos e containers separados.
 2. **Defesa em Profundidade:** O `auth-service` **não possui portas publicadas para o host**, sendo acessível apenas pela rede Docker interna (`filmes-network`).
 3. **Ponto de Entrada Único:** Todas as requisições públicas (incluindo o link de troca de senha) chegam pelo Catálogo, que encaminha internamente as chamadas de autenticação.
+
+---
+
+## 🎞️ Catálogo e segregação por usuário
+
+O catálogo vem da TMDB (chamada só pelo backend); o pôster é a URL `image.tmdb.org/t/p/w500{poster_path}`, sem baixar a imagem:
+
+![Ficha do filme no catálogo com pôster, título, ano e sinopse](assets/SitePosterSinopse.png)
+
+Favoritos são filtrados pelo `usuario_id` do JWT — nunca por um id enviado pelo cliente. A conta A tem 7 favoritos; a conta B, logada no mesmo endereço, não vê nenhum:
+
+![Conta A: página de favoritos com 7 filmes](assets/SiteAt2UserA.png)
+![Conta B: página de favoritos vazia](assets/SiteAt2UserB.png)
 
 ---
 
@@ -454,6 +467,8 @@ docker start <container-redis>      # volta a (healthy)
 
 > 📸 **Prints:** para `docker ps`, use a lista de **Containers** do Portainer (mostra o `Status`/`Health` de cada serviço da stack sem precisar de acesso SSH ao host) — capture com tudo `(healthy)` e, opcionalmente, pare o container do Redis pelo próprio Portainer e capture o `log-service` ficando `(unhealthy)`. Para `/metrics`, acesse https://marcio-mazega-isw055.lapps.studio/metrics; para o painel do Grafana, acesse https://marcio-mazega-isw055.lapps.studio/grafana (ver seção "Deploy no Portainer" acima).
 
+![Containers da stack no Portainer (02/10/2026): só o catalogo publica porta (8220:8000); auth-service, log-service, garage e redis só na rede interna](assets/SitePortainerContainers.png)
+![/health do catálogo em produção com as três dependências up](assets/SiteHealth.png)
 ![Containers da stack no Portainer, com o redis pausado](assets/SiteContainerPausado.png)
 ![log-service (unhealthy) após o redis parar de responder](assets/SiteLogsParado.png)
 
