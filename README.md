@@ -647,7 +647,9 @@ Persistência — os containers da stack foram removidos e recriados pelo Portai
 ![Containers da stack removidos no Portainer](assets/SitePortainerSemContainer.png)
 ![Stack recriada: todos os containers novos (21:07) e healthy](assets/SitePortainerComContainers.png)
 
-> 📸 **Pendente:** a foto continuando a aparecer no perfil depois da recriação.
+Depois da recriação (21:15, containers criados às 21:07), a foto continua no perfil — o objeto sobreviveu no volume do Garage e a chave no banco continua válida:
+
+![Perfil com a foto depois de remover e recriar os containers](assets/SitePerfilPosDeletaroContainer.png)
 
 ---
 
