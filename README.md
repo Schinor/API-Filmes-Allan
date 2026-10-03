@@ -445,6 +445,10 @@ login_falhou   -      email:naoexiste@teste.com
 
 ![Consulta a /api/logs autenticada como admin](assets/SiteLogsAdmin.png)
 
+**Sequência completa em produção** (02/10/2026; e-mails ocultados): usuário comum (uid 13) faz login, favorita (201), comenta (201) e tenta ler os logs (**403**); o admin (uid 1) faz login e consulta a trilha — todos os eventos aparecem, na ordem:
+
+![Sequência login → favoritar → comentar → acesso_negado → consulta como admin](assets/SiteLogsAdminScript.png)
+
 ---
 
 ## 📈 Observabilidade: health checks e métricas
@@ -616,7 +620,9 @@ Para ver a expiração real, suba o catálogo com `STORAGE_MARGEM_USO_SEGUNDOS=0
 
 ![Página de perfil em produção com a foto enviada, bio e favoritos](assets/SitePerfilFoto.png)
 
-> 📸 **Pendente:** objeto no bucket — `docker exec garage-schinor /garage bucket info catalogo-avatares` (contagem de objetos/tamanho) ou console do Portainer.
+Objetos no bucket — `/garage bucket info catalogo-avatares` executado pelo console do Portainer (o container do Garage não tem shell): 2 objetos (a foto do usuário 1 e a do usuário 13), *Website access: false* (bucket privado):
+
+![Garage: bucket catalogo-avatares com 2 objetos e acesso público desligado](assets/SiteGaragePortainer.png)
 
 `SELECT usuario_id, foto_key, foto_bytes FROM perfis;` no MariaDB de produção (02/10/2026), mostrando que o banco guarda só a chave:
 
@@ -636,7 +642,12 @@ Antes e depois do script: A ganha a foto enviada; B continua sem foto, porque as
 | **A** (`/perfil/13`) | ![Perfil de A antes do script](assets/SiteImagemAntesScriptUserA.png) | ![Perfil de A depois do script, com a foto](assets/SiteImagemDepoisScriptUserA.png) |
 | **B** (`/perfil/14`) | ![Perfil de B antes do script](assets/SiteImagemAntesScriptUserB.png) | ![Perfil de B depois do script, ainda sem foto](assets/SiteImagemDepoisScriptUserB.png) |
 
-> 📸 **Pendente:** persistência — a foto continua aparecendo depois de recriar a stack (`docker compose down && docker compose up -d`, sem `-v`).
+Persistência — os containers da stack foram removidos e recriados pelo Portainer, sem apagar os volumes `garage-meta`/`garage-data`:
+
+![Containers da stack removidos no Portainer](assets/SitePortainerSemContainer.png)
+![Stack recriada: todos os containers novos (21:07) e healthy](assets/SitePortainerComContainers.png)
+
+> 📸 **Pendente:** a foto continuando a aparecer no perfil depois da recriação.
 
 ---
 
@@ -670,7 +681,11 @@ Workflow: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
 
 O `docker-compose.yml` referencia `ghcr.io/schinor/<serviço>:${IMAGE_TAG:-latest}`. Para o deploy automático, crie a stack no Portainer a partir do repositório e ligue *Automatic updates* (polling ou webhook). Para fixar uma versão específica, defina `IMAGE_TAG=sha-<commit>` na stack.
 
-Execução verde de referência (commit `ebfba41`, que publicou `sha-ebfba41` + `latest`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/36744055742
+Execução verde de referência (commit `706c944`, que publicou `sha-706c944` + `latest`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/37078516642
+
+Stack em produção fixada nessa versão com `IMAGE_TAG=sha-706c944` — todos os containers rodando a tag do commit e `healthy` (Grafana e Prometheus aparecem `running` porque não têm healthcheck):
+
+![Containers no Portainer rodando ghcr.io/schinor/*:sha-706c944, todos healthy](assets/SitePortainerComContainers.png)
 
 ![Execuções do workflow CI/CD no GitHub Actions, todas com sucesso](assets/SiteCICD.png)
 
