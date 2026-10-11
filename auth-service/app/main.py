@@ -1,5 +1,6 @@
 import sys
 import os
+import logging
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
@@ -18,6 +19,14 @@ from app.core.rbac_seed import seed_rbac
 from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
 from app.routes.premium import router as premium_router
+
+
+# Loggers "auth-service.*" em INFO no stdout (ex.: eventos do Stripe aplicados).
+# Sem isso só WARNING+ aparece, pelo handler de último recurso do Python.
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s - %(message)s"))
+logging.getLogger("auth-service").addHandler(_log_handler)
+logging.getLogger("auth-service").setLevel(logging.INFO)
 
 
 def init_db():
