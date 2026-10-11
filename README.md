@@ -16,6 +16,7 @@ Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Ha
 | 4 | RBAC | [Controle de acesso (RBAC)](#️-controle-de-acesso-baseado-em-papel-rbac) |
 | 5 | Logs e auditoria | [Auditoria: log-service + Redis Streams](#-auditoria-log-service--redis-streams) |
 | 6 | Upload e perfil | [Perfil de usuário e object storage (Garage)](#️-perfil-de-usuário-e-object-storage-garage) |
+| 7 | Plano Premium com Stripe (modo de teste) | [Plano Premium com Stripe](#-plano-premium-com-stripe), [Modelo de dados](#️-modelo-de-dados-schema) |
 | Extra | Swagger/OpenAPI | [Documentação da API](#-documentação-da-api-swagger--openapi) |
 | Extra | CI/CD | [CI/CD com GitHub Actions](#-cicd-com-github-actions) |
 | Extra | Observabilidade | [Observabilidade](#-observabilidade-health-checks-e-métricas) |
@@ -299,6 +300,15 @@ STORAGE_MARGEM_USO_SEGUNDOS=600
 STORAGE_EXPIRACAO_MAX_SEGUNDOS=3600
 # Tamanho máximo do upload da foto (2 MB)
 PERFIL_FOTO_MAX_BYTES=2097152
+
+# Plano Premium (Stripe, SOMENTE modo de teste) — Atividade 7
+STRIPE_SECRET_KEY=sk_test_xxx          # sk_live_ é recusada na inicialização
+STRIPE_WEBHOOK_SECRET=whsec_xxx        # impresso pela Stripe CLI
+STRIPE_PRICE_ID=price_xxx              # preço recorrente de R$ 9,90/mês
+FRONTEND_URL=http://localhost:8000     # destino da success_url/cancel_url
+LIMITE_FAVORITOS_FREE=5
+# Token compartilhado catálogo ↔ auth-service (rota interna que grava o premium)
+AUTH_INTERNAL_TOKEN=token_interno_do_auth_service
 ```
 
 ---
@@ -653,6 +663,161 @@ Depois da recriação (21:15, containers criados às 21:07), a foto continua no 
 
 ---
 
+## 💳 Plano Premium com Stripe
+
+**Atividade 7.** O HANK+ ganhou um **Plano Premium pago (R$ 9,90/mês)**, cobrado pelo **Stripe em modo de teste**. O benefício é verificado no backend: no plano gratuito o usuário guarda **até 5 favoritos**, e o Premium não tem limite. Atividade proposta pelo professor [@siriani](https://github.com/siriani).
+
+| Método | Rota | Quem chama | O que faz |
+|---|---|---|---|
+| POST | `/api/premium/checkout` | Angular (JWT) | Cria a Checkout Session e devolve `{"url": ...}` do Stripe. 409 para quem já é Premium |
+| POST | `/webhooks/stripe` | Stripe (sem JWT, **com assinatura**) | Valida a assinatura e aplica o evento. 400 se a assinatura for inválida |
+| GET | `/api/premium/status` | Angular (JWT) | `premium`, `premium_desde`, favoritos usados e limite (`null` = ilimitado) |
+| POST | `/internal/premium/eventos` | catálogo → auth-service (rede interna) | Grava `premium` e o `event_id` na mesma transação. Exige `X-Internal-Token` |
+
+### 1. Fluxo
+
+```
+Usuário ──"Assinar Premium"──► Angular ──POST /api/premium/checkout (JWT)──► catalogo
+                                                                              │ Checkout Session (price, client_reference_id)
+                                                                              ▼
+Usuário ◄──────────── redireciona para a página hospedada ◄──────────────── Stripe
+   │  digita o cartão SÓ no Stripe
+   ▼
+Stripe ──volta para /premium/sucesso──► Angular  (não altera nada; faz polling em /api/premium/status)
+   │
+   └──POST /webhooks/stripe (checkout.session.completed, Stripe-Signature)──► catalogo
+                                          1. valida a assinatura sobre o corpo bruto (400 se falhar)
+                                          2. POST /internal/premium/eventos (X-Internal-Token, só IDs)
+                                                                              ▼
+                                                                         auth-service
+                                          3. premium = 1 + event_id processado, na MESMA transação
+                                                                              ▼
+                                                                           MariaDB
+```
+
+1. O botão "Assinar Premium" chama `POST /api/premium/checkout`. O catálogo cria a sessão com `mode="subscription"`, o `STRIPE_PRICE_ID`, `client_reference_id` = id do usuário e `customer_email`, e devolve a URL. Isso já gera o evento de auditoria `premium_checkout_iniciado`.
+2. O cartão é digitado **só no Checkout hospedado pelo Stripe**.
+3. O Stripe devolve o usuário para `/premium/sucesso`. **Essa página não ativa nada**: ela mostra "Processando pagamento…" e consulta `/api/premium/status` a cada 1,5 s, por até 15 s.
+4. O Stripe envia `checkout.session.completed` para `/webhooks/stripe`. Com a assinatura válida, o catálogo repassa ao auth-service só os IDs do evento, e o auth-service grava `premium = 1`, `stripe_customer_id`, `stripe_subscription_id` e `premium_desde`. A auditoria registra `premium_ativado`.
+5. `customer.subscription.deleted` (cancelamento) volta `premium` para 0 e gera `premium_cancelado`. Qualquer outro evento recebe 200 e é ignorado.
+
+### 2. Por que o cartão nunca passa pelo backend (PCI-DSS)
+
+Quem armazena, processa ou transmite número de cartão entra no escopo do **PCI-DSS**, com auditoria, segmentação de rede, criptografia e varreduras periódicas. Com o **Checkout hospedado**, o formulário do cartão é uma página do próprio Stripe: o número, a validade e o CVV vão do navegador direto para o Stripe e **nunca chegam** ao catálogo, ao banco ou aos logs. Do Stripe o banco guarda só os IDs (`cus_...`, `sub_...`, `evt_...`). Os logs registram só `event.id`, `event.type` e `usuario_id`: nem o payload, nem o header `Stripe-Signature`.
+
+### 3. Onde ficaram os endpoints: Opção A (catálogo)
+
+O Stripe precisa alcançar o webhook pela rede, e o auth-service **não tem porta publicada** (e continua sem). Por isso checkout e webhook ficaram no **catálogo**, que já é o serviço exposto. A gravação do status continua com o **dono da tabela `usuarios`**, o auth-service:
+
+- o catálogo valida a assinatura e chama `POST /internal/premium/eventos` no auth-service, pela rede interna, com o token compartilhado `AUTH_INTERNAL_TOKEN`;
+- o auth-service grava a mudança no usuário **e** o `event_id` em `stripe_eventos_processados` **na mesma transação**. Um reenvio do mesmo evento devolve `duplicado: true` e não altera nada. Se duas entregas chegarem ao mesmo tempo, a chave primária do `event_id` barra a segunda;
+- se o auth-service falhar, o webhook responde **500**, e o Stripe reenvia mais tarde. A idempotência garante que o evento seja aplicado uma vez só.
+
+A Opção B (endpoints no auth-service + Stripe CLI na rede Docker) foi descartada: o webhook só funcionaria com a CLI encaminhando, e o checkout precisaria de proxy pelo catálogo do mesmo jeito.
+
+### 4. Status premium e o JWT
+
+O JWT deste projeto carrega claims locais (nome, papel, permissões) e o catálogo o valida sem consultar ninguém. Um token emitido antes do pagamento continuaria dizendo "não premium". Por isso **o plano nunca é lido do token**: o limite de favoritos e o `/api/premium/status` consultam `usuarios.premium` no banco, via auth-service. O usuário vira Premium no mesmo instante em que o webhook chega, sem relogar. O front só chama `/api/auth/me` de novo para atualizar o usuário guardado no navegador.
+
+### 5. Benefício: favoritos ilimitados
+
+`POST /api/favoritos`, **antes do INSERT**:
+
+1. filme já favoritado → **409**, como antes;
+2. se o usuário já tem `LIMITE_FAVORITOS_FREE` (padrão **5**) favoritos, o catálogo consulta o plano no banco. Para quem não é Premium, a resposta é **HTTP 403**:
+   ```json
+   {"detail": "Limite de 5 favoritos atingido. Assine o Premium para favoritos ilimitados."}
+   ```
+   Como todo 403 do catálogo, o bloqueio gera `acesso_negado` na auditoria, com `recurso=favoritos:limite-free`.
+
+Abaixo do limite, o auth-service nem é consultado. O RBAC continua valendo antes de tudo: quem não tem `adicionar:favoritos` recebe o 403 de permissão, como na atividade 4. O Angular **só reflete** a regra: mostra o contador "3/5 favoritos" e o botão de assinar na página de Favoritos, a mensagem do 403 com CTA no modal do filme e o **selo ★ Premium** no perfil (o selo é só visual).
+
+### 6. Como rodar em modo de teste
+
+**No painel do Stripe (com "Test mode" ligado):**
+1. Crie o produto **"Plano Premium"** com preço **recorrente mensal de R$ 9,90** e copie o `price_...`.
+2. Em *Developers → API keys*, copie a **`sk_test_...`**.
+
+**No `.env`** (ver `.env.example`):
+
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...      # impresso pela Stripe CLI (passo abaixo)
+STRIPE_PRICE_ID=price_...
+FRONTEND_URL=http://localhost:8000   # a SPA é servida pelo catálogo; use :4200 com ng serve
+LIMITE_FAVORITOS_FREE=5
+AUTH_INTERNAL_TOKEN=...              # openssl rand -hex 32
+```
+
+> 🔒 Só chaves de teste: o catálogo **recusa subir** com `sk_live_...`. Sem as variáveis `STRIPE_*`, checkout e webhook respondem 503 e o resto da aplicação segue normal (é o caso do CI).
+
+**Stripe CLI recebendo os webhooks** (container na mesma rede do catálogo, no `docker-compose.dev.yml`, atrás do profile `stripe`):
+
+```bash
+# 1. Descobre o segredo de assinatura da CLI e coloca em STRIPE_WEBHOOK_SECRET no .env
+docker compose -f docker-compose.dev.yml run --rm --no-deps stripe-cli listen --api-key sk_test_SUA_CHAVE --print-secret
+
+# 2. Sobe a stack com a CLI encaminhando para http://catalogo:8000/webhooks/stripe
+docker compose -f docker-compose.dev.yml --profile stripe up --build
+
+# Acompanhar os eventos encaminhados (ex.: "checkout.session.completed [200]")
+docker compose -f docker-compose.dev.yml logs -f stripe-cli
+```
+
+> O `whsec_` da CLI é **diferente** do segredo de um endpoint cadastrado no painel do Stripe. Não misture os dois. Webhook de produção cadastrado no painel ficou fora do escopo.
+
+Sem Docker, com o catálogo rodando direto no host: `stripe listen --forward-to localhost:8000/webhooks/stripe`.
+
+**Cartões de teste** (qualquer data futura, qualquer CVV e qualquer CEP):
+
+| Cartão | Resultado |
+|---|---|
+| `4242 4242 4242 4242` | Aprovado |
+| `4000 0000 0000 0002` | Recusado |
+| `4000 0025 0000 3155` | Exige autenticação 3DS |
+
+### 7. Roteiro de verificação
+
+1. Logue como usuário comum (plano com `adicionar:favoritos`, ex.: Preso no Terminal) e favorite 5 filmes. O 6º retorna **403**.
+2. Clique em **Assinar Premium** e pague com `4242 4242 4242 4242`.
+3. No log da CLI aparece `checkout.session.completed [200]`.
+4. No banco:
+   ```sql
+   SELECT id, email, premium, stripe_customer_id, stripe_subscription_id FROM usuarios WHERE id = ?;
+   ```
+   O resultado deve mostrar `premium = 1`.
+5. Favorite o 6º filme, agora com **201**.
+6. Segurança: um webhook forjado é recusado.
+   ```bash
+   curl -i -X POST http://localhost:8000/webhooks/stripe -d '{"fake":true}'   # 400 Assinatura inválida
+   ```
+7. Cancele a assinatura pelo painel (ou `stripe trigger customer.subscription.deleted`) e o usuário volta a `premium = 0`.
+8. `stripe events resend <evt_id>` reenvia o mesmo evento. O log mostra `duplicado=True` e nada muda.
+
+### 8. Prints
+
+| Entregável | Print |
+|---|---|
+| Checkout do Stripe (test mode) concluído | ![Checkout do Stripe concluído](assets/SitePremiumCheckout.png) |
+| Usuário com `premium = 1` após o webhook | ![premium = 1 no banco](assets/SitePremiumBanco.png) |
+| Usuário comum bloqueado no 6º favorito (403) | ![Limite de favoritos atingido](assets/SitePremiumLimite.png) |
+| Usuário Premium favoritando além do limite | ![Premium liberado](assets/SitePremiumLiberado.png) |
+
+### 9. Discussão: Stripe como gestor de usuários
+
+Sugestão do professor, **não implementada**: guardar no banco local só `id` + `stripe_customer_id` e deixar nome, e-mail e dados de cobrança no Stripe (Customers).
+
+| Prós | Contras |
+|---|---|
+| Menos dado pessoal no nosso banco: menor superfície de vazamento e de LGPD | Login, papéis (RBAC) e reset de senha continuam precisando de banco próprio; o Stripe não é provedor de identidade |
+| Uma fonte só para dados de cobrança; o Stripe já mantém e-mail e histórico atualizados | Cada tela que mostra nome/e-mail vira uma chamada externa (latência, rate limit da API) |
+| Customer Portal pronto para o usuário editar os dados de pagamento | Dependência forte de um fornecedor: indisponibilidade ou troca de gateway afeta o cadastro inteiro |
+| | Usuários do plano gratuito precisariam virar Customers no Stripe sem nunca pagar |
+
+Conclusão: faz sentido para **dados de cobrança**, que é o que este projeto já faz (só os IDs do Stripe no banco). Identidade e autorização continuam no auth-service.
+
+---
+
 ## 🚀 CI/CD com GitHub Actions
 
 ```
@@ -737,7 +902,20 @@ CREATE TABLE usuarios (
   role VARCHAR(50) NOT NULL DEFAULT 'amigo-do-wilson',
   role_id INT NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Plano Premium (Atividade 7): só muda pelo webhook do Stripe com assinatura validada.
+  -- Do Stripe, só os IDs — nenhum dado de cartão.
+  premium BOOLEAN NOT NULL DEFAULT FALSE,
+  stripe_customer_id VARCHAR(255) NULL,
+  stripe_subscription_id VARCHAR(255) NULL,
+  premium_desde DATETIME NULL,
   FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL
+);
+
+-- Idempotência do webhook do Stripe (Atividade 7): gravado na mesma transação que muda o usuário
+CREATE TABLE stripe_eventos_processados (
+  event_id VARCHAR(255) PRIMARY KEY,
+  tipo VARCHAR(100) NOT NULL,
+  processado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Ajustes individuais: concede (concedida = TRUE) ou revoga (FALSE) uma permissão em relação ao papel
@@ -918,6 +1096,13 @@ Cobertura dos testes:
   - `DELETE` da foto: remove do banco e do bucket, repetido → 204. Remoção do usuário pelo admin apaga perfil e foto.
   - Auditoria: `perfil_atualizado`, `perfil_foto_atualizada`, `perfil_foto_removida`, `acesso_negado` com `recurso=perfil:<id>`; log-service fora não quebra o upload.
   - Ponte `/storage`: sem assinatura 403, bucket errado 404, upstream fora 502, 403 do Garage repassado e **caminho + query enviados ao upstream byte a byte iguais** aos assinados.
+
+- **Plano Premium / Stripe** ([`tests/test_premium.py`](tests/test_premium.py) e o fim de [`tests/test_auth_service.py`](tests/test_auth_service.py); webhooks assinados com HMAC de verdade, então a validação real do `stripe.Webhook.construct_event` é exercitada):
+  - Configuração: `sk_live_` recusada na inicialização; sem `STRIPE_*`, checkout e webhook → 503.
+  - Checkout: sessão com `mode=subscription`, preço, `client_reference_id`, `success_url`/`cancel_url` corretos e auditoria `premium_checkout_iniciado`; **checkout não torna ninguém premium**; já premium → 409; erro do Stripe → 502; sem login → 401.
+  - Webhook: sem assinatura, corpo adulterado, segredo errado e assinatura velha (replay) → **400** sem tocar no usuário; válido → premium e só IDs repassados; **evento duplicado aplicado uma vez**; eventos não tratados e checkout não pago ignorados; auth-service fora → 500 (o Stripe reenvia).
+  - Auth-service: rota interna exige `X-Internal-Token` (401/503); ativação grava só IDs; reenvio não reativa um cancelado; cancelamento só vale para a assinatura atual; usuário inexistente é registrado sem loop.
+  - Limite de favoritos: comum bloqueado no 6º (**403**, auditado com `favoritos:limite-free`), repetido continua 409, Premium liberado após o webhook, limite configurável e **plano lido do banco, não do JWT**; selo `premium` no perfil.
 
 ---
 
