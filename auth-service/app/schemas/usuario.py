@@ -49,6 +49,8 @@ class UsuarioOut(BaseModel):
     role_id: Optional[int] = None
     permissions: List[str] = []
     criado_em: Optional[datetime] = None
+    premium: bool = False
+    premium_desde: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

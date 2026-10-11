@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Somente desenvolvimento: sem credenciais SMTP, registra o link no log em vez de falhar
     EMAIL_LOG_LINK_WITHOUT_SMTP: bool = False
 
+    # Token compartilhado com o catálogo para as rotas /internal (webhook do Stripe já validado).
+    # Vazio = rotas internas desligadas (503).
+    AUTH_INTERNAL_TOKEN: str = ""
+
     model_config = SettingsConfigDict(env_file=(".env", "../.env", "../../.env"), extra="ignore")
 
 

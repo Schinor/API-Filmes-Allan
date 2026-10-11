@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Integer, String, DateTime, ForeignKey
+from sqlalchemy import Boolean, Integer, String, DateTime, ForeignKey, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -14,6 +14,13 @@ class Usuario(Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="amigo-do-wilson")
     role_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("roles.id", ondelete="SET NULL"), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Plano Premium (atividade 7). Só muda pelo webhook do Stripe com assinatura validada.
+    # Do Stripe guardamos apenas os IDs — nenhum dado de cartão passa por aqui.
+    premium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    premium_desde: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     papel = relationship("Papel", back_populates="usuarios", lazy="joined")
     reset_tokens = relationship("ResetToken", back_populates="usuario", cascade="all, delete-orphan")

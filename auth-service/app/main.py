@@ -17,6 +17,7 @@ from app.core.rbac_seed import seed_rbac
 
 from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
+from app.routes.premium import router as premium_router
 
 
 def init_db():
@@ -39,6 +40,17 @@ def init_db():
                         text("ALTER TABLE usuarios ADD COLUMN role_id INT NULL")
                     )
                     conn.commit()
+                # Plano Premium (atividade 7) — mesmo DDL da migração 004
+                colunas_premium = {
+                    "premium": "BOOLEAN NOT NULL DEFAULT FALSE",
+                    "stripe_customer_id": "VARCHAR(255) NULL",
+                    "stripe_subscription_id": "VARCHAR(255) NULL",
+                    "premium_desde": "DATETIME NULL",
+                }
+                for coluna, ddl in colunas_premium.items():
+                    if coluna not in columns:
+                        conn.execute(text(f"ALTER TABLE usuarios ADD COLUMN {coluna} {ddl}"))
+                        conn.commit()
     except Exception as e:
         print(f"[auth-service] Aviso ao verificar schema do banco: {e}")
 
@@ -103,3 +115,4 @@ Instrumentator(registry=CollectorRegistry(), excluded_handlers=["/metrics", "/he
 # Rotas
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(premium_router)
