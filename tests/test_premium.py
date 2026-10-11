@@ -290,3 +290,13 @@ def test_bloqueio_do_limite_e_auditado(ctx):
         _favoritar(ctx, movie_id)
     negados = [e for e in ctx.eventos if e["acao"] == "acesso_negado"]
     assert negados and negados[-1]["recurso"] == "favoritos:limite-free" and negados[-1]["usuario_id"] == 1
+
+
+def test_perfil_exibe_selo_premium(ctx, monkeypatch):
+    async def fake_conta(method, path, **kw):
+        return dict(ctx.usuarios[1])
+
+    monkeypatch.setattr("app.routes.perfis.forward_request", fake_conta)
+    assert ctx.client.get("/api/perfis/1").json()["premium"] is False
+    ctx.webhook(_evento_checkout("evt_selo", 1))
+    assert ctx.client.get("/api/perfis/1").json()["premium"] is True

@@ -17,6 +17,8 @@ class PerfilOut(BaseModel):
     # URL relativa ao catálogo (/storage/...), pré-assinada e com expiração; null sem foto
     foto_url: Optional[str] = None
     favoritos: List[FavoritoPerfilOut] = []
+    # Selo "Premium" (visual); o benefício em si é checado no POST /api/favoritos
+    premium: bool = False
     # Só para a UI esconder/mostrar os botões — não é controle de acesso
     pode_editar: bool = False
 

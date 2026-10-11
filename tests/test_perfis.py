@@ -146,6 +146,7 @@ def test_get_perfil_sem_linha_lista_favoritos_e_pode_editar_so_para_o_dono(ctx):
         "foto_url": None,
         "favoritos": [{"tmdb_movie_id": 8358, "titulo": "Náufrago", "poster_path": "/n.jpg"}],
         "pode_editar": False,
+        "premium": False,
     }
 
     ctx.logar(2)
