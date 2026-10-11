@@ -13,11 +13,15 @@ async def forward_request(
     json_data: Optional[Dict[str, Any]] = None,
     data: Optional[Dict[str, Any]] = None,
     headers: Optional[Dict[str, str]] = None,
+    interno: bool = False,
 ) -> Any:
     url = f"{AUTH_SERVICE_URL}{path}"
     req_headers = {}
     if headers and "authorization" in headers:
         req_headers["authorization"] = headers["authorization"]
+    if interno:
+        # Rotas /internal do auth-service (ex.: gravar o status premium vindo do webhook do Stripe)
+        req_headers["X-Internal-Token"] = settings.AUTH_INTERNAL_TOKEN
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -55,3 +59,9 @@ async def get_authenticated_user(authorization: Optional[str]) -> Dict[str, Any]
             headers={"WWW-Authenticate": "Bearer"},
         )
     return await forward_request("GET", "/me", headers={"authorization": authorization})
+
+
+async def usuario_premium(usuario_id: int) -> bool:
+    """Status premium lido do BANCO (via auth-service), nunca da claim do JWT, que pode estar velha."""
+    usuario = await forward_request("GET", f"/users/{usuario_id}")
+    return bool(usuario.get("premium"))

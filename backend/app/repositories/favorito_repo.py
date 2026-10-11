@@ -13,6 +13,10 @@ def list_by_user(db: Session, usuario_id: int) -> List[Favorito]:
     )
 
 
+def count_by_user(db: Session, usuario_id: int) -> int:
+    return db.query(Favorito).filter(Favorito.usuario_id == usuario_id).count()
+
+
 def get_by_user_and_movie(db: Session, usuario_id: int, tmdb_movie_id: int) -> Optional[Favorito]:
     return (
         db.query(Favorito)

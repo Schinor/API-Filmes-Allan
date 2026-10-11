@@ -2,9 +2,18 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.clients import log_client
-from app.core.api_responses import FAVORITO_DUPLICADO, FAVORITO_NAO_ENCONTRADO, UNAUTHORIZED, forbidden
+from app.clients.auth_client import usuario_premium
+from app.core.api_responses import (
+    AUTH_SERVICE_INDISPONIVEL,
+    FAVORITO_DUPLICADO,
+    FAVORITO_NAO_ENCONTRADO,
+    UNAUTHORIZED,
+    forbidden,
+    forbidden_favoritar,
+)
+from app.core.config import settings
 from app.core.database import get_db
-from app.dependencies import require_permission
+from app.dependencies import negar_acesso, require_permission
 from app.repositories import favorito_repo
 from app.schemas.favoritos import FavoritoCreate, FavoritoOut
 
@@ -28,7 +37,12 @@ async def listar_favoritos(
     "",
     response_model=FavoritoOut,
     status_code=status.HTTP_201_CREATED,
-    responses={**UNAUTHORIZED, **forbidden("adicionar:favoritos"), **FAVORITO_DUPLICADO},
+    responses={
+        **UNAUTHORIZED,
+        **forbidden_favoritar("adicionar:favoritos"),
+        **FAVORITO_DUPLICADO,
+        **AUTH_SERVICE_INDISPONIVEL,
+    },
 )
 async def favoritar(
     payload: FavoritoCreate,
@@ -37,7 +51,23 @@ async def favoritar(
     user: dict = Depends(require_permission("adicionar:favoritos")),
     db: Session = Depends(get_db),
 ):
-    """Adiciona um filme aos favoritos do usuário logado — requer 'adicionar:favoritos'."""
+    """Adiciona um filme aos favoritos do usuário logado — requer 'adicionar:favoritos'.
+
+    Plano gratuito: até LIMITE_FAVORITOS_FREE favoritos; Premium: sem limite.
+    """
+    if favorito_repo.get_by_user_and_movie(db, user["id"], payload.tmdb_movie_id):
+        raise HTTPException(status_code=409, detail="Filme já está nos favoritos")
+
+    limite = settings.LIMITE_FAVORITOS_FREE
+    # Só consulta o auth-service quando o limite entra em jogo; abaixo dele todo mundo pode
+    if favorito_repo.count_by_user(db, user["id"]) >= limite and not await usuario_premium(user["id"]):
+        raise negar_acesso(
+            request,
+            user["id"],
+            "favoritos:limite-free",
+            f"Limite de {limite} favoritos atingido. Assine o Premium para favoritos ilimitados.",
+        )
+
     fav = favorito_repo.create(
         db,
         usuario_id=user["id"],

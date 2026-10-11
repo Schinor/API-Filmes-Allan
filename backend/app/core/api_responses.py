@@ -141,3 +141,30 @@ COMENTARIO_NAO_ENCONTRADO = {
         "content": {"application/json": {"example": {"detail": "Comentário não encontrado"}}},
     }
 }
+
+def forbidden_favoritar(permission: str) -> dict:
+    """403 do POST /api/favoritos: sem permissão (RBAC) ou limite do plano gratuito atingido."""
+    return {
+        403: {
+            "description": "Sem a permissão necessária, ou limite de favoritos do plano gratuito atingido "
+            "(evento 'acesso_negado' é registrado na auditoria)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "sem_permissao": {"value": {"detail": f"Acesso negado: permissão '{permission}' necessária"}},
+                        "limite_free": {
+                            "value": {"detail": "Limite de 5 favoritos atingido. Assine o Premium para favoritos ilimitados."}
+                        },
+                    }
+                }
+            },
+        }
+    }
+
+
+STRIPE_NAO_CONFIGURADO = {
+    503: {
+        "description": "Stripe não configurado neste ambiente (STRIPE_* ausentes) ou auth-service inacessível",
+        "content": {"application/json": {"example": {"detail": "Pagamentos não configurados neste ambiente"}}},
+    }
+}
