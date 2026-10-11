@@ -262,3 +262,4 @@
 .comentario-meta span, .empty-text, .loading-text { color: var(--paper-muted); }
 .btn-del { color: var(--paper-muted); font-family: var(--font-display); letter-spacing: 1px; text-transform: uppercase; }
 .btn-del:hover { color: #ff6b6b; }
+.limite-favoritos { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin: -.5rem 0 1.25rem; padding: .75rem; border: 1px solid var(--gold); border-radius: var(--radius-md); background: var(--gold-soft); color: var(--paper); font-size: .85rem; }

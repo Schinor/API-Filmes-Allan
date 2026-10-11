@@ -40,6 +40,13 @@
           }
         </div>
 
+        @if (erroLimiteFavoritos()) {
+          <div class="limite-favoritos" role="alert">
+            <p>{{ erroLimiteFavoritos() }}</p>
+            <app-premium-cta [compacto]="true" />
+          </div>
+        }
+
         <div class="comentarios-section">
           <h3>
             Comentários

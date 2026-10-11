@@ -171,3 +171,33 @@
 .loading p, .empty p { color: var(--paper-muted); }
 .btn-primary { border-radius: var(--radius-md); background: var(--gold); color: var(--surface-100); font-family: var(--font); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
 .btn-primary:hover { background: var(--accent-light); }
+
+.plano-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: .9rem 1.1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-200);
+  color: var(--paper-muted);
+  font-size: .9rem;
+}
+
+.plano-banner.no-limite { border-color: var(--gold); background: var(--gold-soft); }
+.plano-banner.premium { justify-content: flex-start; border-color: var(--gold); }
+.plano-uso { display: flex; flex-direction: column; gap: .2rem; }
+.plano-uso strong { color: var(--paper); font-size: 1rem; }
+
+.selo-premium {
+  padding: 2px 10px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-full);
+  background: var(--gold-soft);
+  color: var(--gold-hover);
+  font-family: var(--font-display);
+  letter-spacing: 1.5px;
+}

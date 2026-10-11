@@ -17,6 +17,8 @@ export interface Perfil {
   favoritos: FavoritoPerfil[];
   /** Só para a UI: quem garante a regra de dono é o backend */
   pode_editar: boolean;
+  /** Selo visual; o benefício (favoritos ilimitados) é garantido pelo backend */
+  premium: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

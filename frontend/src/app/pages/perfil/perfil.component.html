@@ -23,7 +23,12 @@
 
       <div class="perfil-info">
         <div class="kicker-tag"><span class="kicker-dot"></span><span>PERFIL</span></div>
-        <h1>{{ p.nome }}</h1>
+        <h1>
+          {{ p.nome }}
+          @if (p.premium) {
+            <span class="selo-premium" title="Assinante HANK+ Premium">★ Premium</span>
+          }
+        </h1>
 
         @if (!editando()) {
           @if (p.bio) {
@@ -76,6 +81,16 @@
         }
       </div>
     </section>
+
+    @if (p.pode_editar && !p.premium) {
+      <section class="plano-card">
+        <div>
+          <h2>Plano gratuito</h2>
+          <p>Assine o HANK+ Premium e tenha favoritos ilimitados.</p>
+        </div>
+        <app-premium-cta />
+      </section>
+    }
 
     <section class="favoritos">
       <h2>Filmes favoritos</h2>

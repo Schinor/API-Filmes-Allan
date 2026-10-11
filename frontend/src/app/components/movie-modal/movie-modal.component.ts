@@ -6,10 +6,11 @@ import { Filme } from '../../services/filmes.service';
 import { FavoritosService } from '../../services/favoritos.service';
 import { ComentariosService, Comentario } from '../../services/comentarios.service';
 import { HasPermissionDirective } from '../../directives/has-permission.directive';
+import { PremiumCtaComponent } from '../../components/premium-cta/premium-cta.component';
 
 @Component({
   selector: 'app-movie-modal',
-  imports: [CommonModule, FormsModule, SlicePipe],
+  imports: [CommonModule, FormsModule, SlicePipe, PremiumCtaComponent],
   templateUrl: './movie-modal.component.html',
   styleUrl: './movie-modal.component.css',
 })
@@ -28,6 +29,8 @@ export class MovieModalComponent implements OnInit {
   comentarios = signal<Comentario[]>([]);
   loadingCom = signal(false);
   erroComentario = signal('');
+  /** Mensagem do 403 de limite do plano gratuito (vem do backend) */
+  erroLimiteFavoritos = signal('');
   novoComentario = '';
 
   ngOnInit() {
@@ -53,6 +56,7 @@ export class MovieModalComponent implements OnInit {
     }
 
     this.loadingFav.set(true);
+    this.erroLimiteFavoritos.set('');
     if (this.isFavoritado()) {
       this.favService.desfavoritar(this.filme.id).subscribe({
         next: () => {
@@ -73,7 +77,12 @@ export class MovieModalComponent implements OnInit {
           this.loadingFav.set(false);
           this.favoritoAlterado.emit({ id: this.filme.id, favoritado: true });
         },
-        error: () => this.loadingFav.set(false),
+        error: (err) => {
+          this.loadingFav.set(false);
+          if (err?.status === 403) {
+            this.erroLimiteFavoritos.set(err?.error?.detail || 'Limite de favoritos do plano gratuito atingido.');
+          }
+        },
       });
     }
   }

@@ -3,23 +3,36 @@ import { RouterLink } from '@angular/router';
 import { FavoritosService, Favorito } from '../../services/favoritos.service';
 import { FilmesService, Filme } from '../../services/filmes.service';
 import { MovieModalComponent } from '../../components/movie-modal/movie-modal.component';
+import { PremiumCtaComponent } from '../../components/premium-cta/premium-cta.component';
+import { PremiumService, PremiumStatus } from '../../services/premium.service';
 
 @Component({
   selector: 'app-favoritos',
-  imports: [RouterLink, MovieModalComponent],
+  imports: [RouterLink, MovieModalComponent, PremiumCtaComponent],
   templateUrl: './favoritos.component.html',
   styleUrl: './favoritos.component.css',
 })
 export class FavoritosComponent implements OnInit {
   private favService = inject(FavoritosService);
   private filmesService = inject(FilmesService);
+  private premiumService = inject(PremiumService);
 
   favoritos = signal<Favorito[]>([]);
   carregando = signal(true);
   filmeAberto = signal<Filme | null>(null);
+  plano = signal<PremiumStatus | null>(null);
 
   ngOnInit() {
     this.carregarFavoritos();
+    this.carregarPlano();
+  }
+
+  /** Só exibe o uso; quem aplica o limite é o backend (403 no POST /api/favoritos). */
+  carregarPlano() {
+    this.premiumService.status().subscribe({
+      next: (s) => this.plano.set(s),
+      error: () => this.plano.set(null),
+    });
   }
 
   carregarFavoritos() {
@@ -60,11 +73,15 @@ export class FavoritosComponent implements OnInit {
 
   remover(fav: Favorito) {
     this.favService.desfavoritar(fav.tmdb_movie_id).subscribe({
-      next: () => this.favoritos.update((fs) => fs.filter((f) => f.id !== fav.id)),
+      next: () => {
+        this.favoritos.update((fs) => fs.filter((f) => f.id !== fav.id));
+        this.carregarPlano();
+      },
     });
   }
 
   onFavoritoAlterado({ id, favoritado }: { id: number; favoritado: boolean }) {
+    this.carregarPlano();
     if (!favoritado) {
       this.favoritos.update((fs) => fs.filter((f) => f.tmdb_movie_id !== id));
       this.fecharModal();

@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import { PerfilService, Perfil, FavoritoPerfil } from '../../services/perfil.service';
 import { FilmesService, Filme } from '../../services/filmes.service';
 import { MovieModalComponent } from '../../components/movie-modal/movie-modal.component';
+import { PremiumCtaComponent } from '../../components/premium-cta/premium-cta.component';
 
 const BIO_MAX = 280;
 const FOTO_MAX_BYTES = 2 * 1024 * 1024;
@@ -13,7 +14,7 @@ const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Component({
   selector: 'app-perfil',
-  imports: [RouterLink, FormsModule, MovieModalComponent],
+  imports: [RouterLink, FormsModule, MovieModalComponent, PremiumCtaComponent],
   templateUrl: './perfil.component.html',
   styleUrl: './perfil.component.css',
 })

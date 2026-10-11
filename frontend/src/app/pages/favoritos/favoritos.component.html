@@ -8,6 +8,30 @@
     <a routerLink="/catalogo" class="btn-back">← Voltar ao catálogo</a>
   </div>
 
+  @if (plano(); as pl) {
+    @if (pl.premium) {
+      <div class="plano-banner premium">
+        <span class="selo-premium">★ Premium</span>
+        <span>Favoritos ilimitados</span>
+      </div>
+    } @else {
+      <div class="plano-banner" [class.no-limite]="pl.favoritos >= (pl.limite_favoritos ?? 0)">
+        <div class="plano-uso">
+          <strong>{{ pl.favoritos }}/{{ pl.limite_favoritos }} favoritos</strong>
+          <span>
+            @if (pl.favoritos >= (pl.limite_favoritos ?? 0)) {
+              Você atingiu o limite do plano gratuito.
+            } @else {
+              Plano gratuito: até {{ pl.limite_favoritos }} filmes.
+            }
+            Com o Premium, os favoritos são ilimitados.
+          </span>
+        </div>
+        <app-premium-cta [compacto]="true" />
+      </div>
+    }
+  }
+
   @if (carregando()) {
     <div class="loading">
       <div class="spinner"></div>

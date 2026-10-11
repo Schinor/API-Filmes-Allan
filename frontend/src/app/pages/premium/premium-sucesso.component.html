@@ -1,0 +1,30 @@
+<div class="premium-container">
+  <div class="premium-card">
+    @switch (estado()) {
+      @case ('processando') {
+        <div class="spinner"></div>
+        <h1>Processando pagamento…</h1>
+        <p>O Stripe confirmou o checkout. Estamos aguardando a confirmação da assinatura para liberar o Premium.</p>
+      }
+      @case ('ativo') {
+        <div class="kicker-tag"><span class="kicker-dot"></span><span>HANK+ PREMIUM</span></div>
+        <h1>Premium ativo!</h1>
+        <p>Seus favoritos agora são ilimitados. Obrigado por assinar.</p>
+        <div class="acoes">
+          <a routerLink="/catalogo" class="btn-primary">Explorar catálogo</a>
+          <a routerLink="/perfil" class="btn-secondary">Ver meu perfil</a>
+        </div>
+      }
+      @case ('demorando') {
+        <h1>Quase lá</h1>
+        <p>
+          O pagamento foi recebido, mas a confirmação ainda não chegou. Isso costuma levar poucos
+          segundos; atualize esta página em instantes ou confira seu perfil.
+        </p>
+        <div class="acoes">
+          <a routerLink="/perfil" class="btn-primary">Ver meu perfil</a>
+        </div>
+      }
+    }
+  </div>
+</div>

@@ -50,5 +50,15 @@ export const routes: Routes = [
     canActivate: [authGuard, permissionGuard('gerenciar:usuarios')],
     loadComponent: () => import('./pages/usuarios/usuarios.component').then(m => m.UsuariosComponent),
   },
+  {
+    path: 'premium/sucesso',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/premium/premium-sucesso.component').then(m => m.PremiumSucessoComponent),
+  },
+  {
+    path: 'premium/cancelado',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/premium/premium-cancelado.component').then(m => m.PremiumCanceladoComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

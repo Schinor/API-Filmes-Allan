@@ -9,6 +9,8 @@ export interface Usuario {
   role?: string;
   role_id?: number;
   permissions?: string[];
+  premium?: boolean;
+  premium_desde?: string | null;
 }
 
 export interface Token {
