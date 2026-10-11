@@ -7,6 +7,9 @@
 #
 # Para parar:
 #   docker compose -f docker-compose.dev.yml down
+#
+# Webhooks do Stripe em dev (Atividade 7) — sobe também a Stripe CLI:
+#   docker compose -f docker-compose.dev.yml --profile stripe up --build
 
 services:
   catalogo:
@@ -36,6 +39,13 @@ services:
       - STORAGE_MARGEM_USO_SEGUNDOS=${STORAGE_MARGEM_USO_SEGUNDOS:-600}
       - STORAGE_EXPIRACAO_MAX_SEGUNDOS=${STORAGE_EXPIRACAO_MAX_SEGUNDOS:-3600}
       - PERFIL_FOTO_MAX_BYTES=${PERFIL_FOTO_MAX_BYTES:-2097152}
+      # Plano Premium (Stripe em modo de teste). Sem as chaves, checkout/webhook respondem 503.
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
+      - LIMITE_FAVORITOS_FREE=${LIMITE_FAVORITOS_FREE:-5}
+      - AUTH_INTERNAL_TOKEN=${AUTH_INTERNAL_TOKEN:-}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -80,6 +90,7 @@ services:
       - RESET_REQUEST_LIMIT=${RESET_REQUEST_LIMIT:-3}
       - RESET_REQUEST_WINDOW_MINUTES=${RESET_REQUEST_WINDOW_MINUTES:-15}
       - EMAIL_LOG_LINK_WITHOUT_SMTP=${EMAIL_LOG_LINK_WITHOUT_SMTP:-false}
+      - AUTH_INTERNAL_TOKEN=${AUTH_INTERNAL_TOKEN:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
       interval: 10s
@@ -154,6 +165,29 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
+    networks:
+      - filmes-network-dev
+    restart: unless-stopped
+
+  # Stripe CLI (só dev): escuta os eventos da conta de TESTE e encaminha para o webhook
+  # do catálogo pela rede interna. Ao subir, imprime "Ready! Your webhook signing secret
+  # is whsec_..." — esse valor vai em STRIPE_WEBHOOK_SECRET (e o catálogo precisa ser
+  # recriado para ler o novo valor). Fica atrás do profile "stripe" para não subir
+  # em loop de erro quando não há chave configurada.
+  stripe-cli:
+    image: stripe/stripe-cli:v1.52.1
+    profiles: ["stripe"]
+    command:
+      - listen
+      - --api-key
+      - ${STRIPE_SECRET_KEY:-}
+      - --events
+      - checkout.session.completed,customer.subscription.deleted,invoice.payment_failed
+      - --forward-to
+      - http://catalogo:8000/webhooks/stripe
+    depends_on:
+      catalogo:
+        condition: service_healthy
     networks:
       - filmes-network-dev
     restart: unless-stopped

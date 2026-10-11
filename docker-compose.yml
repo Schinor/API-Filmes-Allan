@@ -28,6 +28,13 @@ services:
       - STORAGE_MARGEM_USO_SEGUNDOS=${STORAGE_MARGEM_USO_SEGUNDOS:-600}
       - STORAGE_EXPIRACAO_MAX_SEGUNDOS=${STORAGE_EXPIRACAO_MAX_SEGUNDOS:-3600}
       - PERFIL_FOTO_MAX_BYTES=${PERFIL_FOTO_MAX_BYTES:-2097152}
+      # Plano Premium (Stripe em modo de teste). Sem as chaves, checkout/webhook respondem 503.
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
+      - LIMITE_FAVORITOS_FREE=${LIMITE_FAVORITOS_FREE:-5}
+      - AUTH_INTERNAL_TOKEN=${AUTH_INTERNAL_TOKEN:-}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -70,6 +77,7 @@ services:
       - RESET_REQUEST_LIMIT=${RESET_REQUEST_LIMIT:-3}
       - RESET_REQUEST_WINDOW_MINUTES=${RESET_REQUEST_WINDOW_MINUTES:-15}
       - EMAIL_LOG_LINK_WITHOUT_SMTP=${EMAIL_LOG_LINK_WITHOUT_SMTP:-false}
+      - AUTH_INTERNAL_TOKEN=${AUTH_INTERNAL_TOKEN:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
       interval: 10s
