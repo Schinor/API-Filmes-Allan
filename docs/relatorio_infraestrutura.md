@@ -1,5 +1,7 @@
 # Relatório de Checkup de Infraestrutura
 
+> ⚠️ Documento histórico (checkup de 13/09/2026: MySQL 8, 9 testes, ainda sem o Plano Premium). A documentação atual e completa do sistema é o [DOCUMENTACAO.md](../DOCUMENTACAO.md).
+
 **Projeto:** Catálogo de Filmes — Tom Hanks (API-Filmes-Allan)  
 **Data:** 13/09/2026  
 **Stack:** Angular 19+ | FastAPI (Python 3.14) | SQLAlchemy 2.0 | MySQL 8.0 / SQLite | Docker & Docker Compose  

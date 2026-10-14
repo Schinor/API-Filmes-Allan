@@ -1,5 +1,7 @@
 # Arquitetura do Sistema — Catálogo Tom Hanks (HANKS+)
 
+> ⚠️ Documento histórico. A documentação atual e completa do sistema é o [DOCUMENTACAO.md](../DOCUMENTACAO.md).
+
 Documento que descreve a arquitetura **atual** do projeto, com base no código-fonte
 (`frontend/`, `backend/`, `auth-service/`, `docker-compose*.yml`, `Dockerfile`).
 

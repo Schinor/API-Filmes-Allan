@@ -34,13 +34,13 @@ Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Ha
 SaaS   Stripe · Mailtrap · TMDB · proxy HTTPS (Cloudflare) · GitHub Actions + GHCR      → só consumimos
 PaaS   catalogo · auth-service · log-service · Redis · Garage · Prometheus · Grafana    → só entregamos imagens + compose
        MariaDB compartilhado                                                            → só recebemos a DATABASE_URL
-IaaS   VM no Proxmox da Fatec (Ubuntu + Docker)                                         → máquina, disco e rede
+IaaS   VM no Proxmox da Fatec (Ubuntu + Docker), administrada pelo professor           → máquina, disco e rede
 ```
 
 | Peça do sistema | Camada | Por quê |
 |---|---|---|
-| **VM no Proxmox da Fatec** (Ubuntu + Docker Engine) | **IaaS** | O provedor entrega só a máquina virtual, o disco e a rede; o sistema operacional e o Docker instalados nela são responsabilidade de quem administra a VM, não do Proxmox. |
-| **Portainer** (stack a partir do `docker-compose.yml`) | **PaaS** (a interface) | É o que transforma a VM numa plataforma: entregamos só o compose e as imagens, e ele cuida de baixar, subir, reiniciar (`restart: unless-stopped`) e ligar a rede, sem que a gente toque no SO. |
+| **VM no Proxmox da Fatec** (Ubuntu + Docker Engine) | **IaaS** | O Proxmox entrega só a máquina virtual, o disco e a rede; o sistema operacional e o Docker ficam com quem administra a VM. **A VM é administrada pelo professor**: ela já chega pronta, com Ubuntu, Docker e Portainer, então nós não tocamos nesta camada. |
+| **Portainer** (stack a partir do `docker-compose.yml`) | **PaaS** (a interface) | Como a VM é do professor, **para nós o Portainer é a plataforma**: entregamos só o compose e as imagens, e ele cuida de baixar, subir, reiniciar (`restart: unless-stopped`) e ligar a rede, sem que a gente toque no SO (que, aliás, nem administramos). |
 | **catalogo**, **auth-service**, **log-service** | **PaaS** (nosso código) | São as nossas aplicações empacotadas como imagens (`ghcr.io/schinor/*`); só fazemos o deploy delas, o runtime (Docker) já está pronto. |
 | **Redis**, **Garage**, **Prometheus**, **Grafana** | **PaaS** (software de terceiros hospedado por nós) | Rodam em containers na nossa stack, então quem cuida deles (volumes, segredos, versão) somos nós. Repare no contraste: o Garage faz o papel do Amazon S3, mas como é *auto-hospedado* ele não é SaaS; se usássemos o S3 de verdade, o storage subiria para a camada de cima. |
 | **MariaDB compartilhado** | **PaaS** (banco gerenciado pela infra) | Não instalamos nem administramos o servidor de banco: recebemos só a `DATABASE_URL` e criamos nossas tabelas nele. |
@@ -365,7 +365,7 @@ docker compose up --build
 2. Vá em **Stacks** ➔ **Add Stack**.
 3. Selecione **Repository**:
    - **Repository URL:** URL do seu repositório GitHub
-   - **Repository reference:** `refs/heads/feature/auth-microservice` (ou a branch de entrega)
+   - **Repository reference:** `refs/heads/main`
    - **Compose path:** `docker-compose.yml`
 4. Na seção **Environment variables**, adicione as variáveis de ambiente necessárias:
    - `PORT`: Porta reservada atribuída ao seu usuário
@@ -380,6 +380,13 @@ docker compose up --build
    - `PROMETHEUS_PROXY_PASSWORD`: senha do HTTP Basic que protege `/prometheus` (o Prometheus não tem login próprio)
    - `GARAGE_RPC_SECRET`, `STORAGE_ACCESS_KEY` (começa com `GK`) e `STORAGE_SECRET_KEY`: segredos do object storage (comandos de geração no [`.env.example`](.env.example)). **Não troque depois do primeiro deploy**: o Garage guarda a chave de acesso no volume `garage-meta`
    - `STORAGE_BUCKET`, `STORAGE_BANDA_MINIMA_KBPS`, `STORAGE_MARGEM_USO_SEGUNDOS`, `STORAGE_EXPIRACAO_MAX_SEGUNDOS`, `PERFIL_FOTO_MAX_BYTES` *(opcionais)*: já têm padrão no compose
+   - `AUTH_INTERNAL_TOKEN`: token interno compartilhado entre o catálogo e o auth-service (o mesmo valor serve aos dois; gere com `openssl rand -hex 32`). Sem ele, a ativação do Premium pelo webhook falha
+   - `STRIPE_SECRET_KEY`: chave secreta do Stripe em modo de teste (`sk_test_...`; o catálogo se recusa a subir com `sk_live_`)
+   - `STRIPE_PRICE_ID`: ID do preço recorrente do Plano Premium cadastrado no painel do Stripe
+   - `STRIPE_WEBHOOK_SECRET`: *signing secret* do endpoint de webhook cadastrado no painel (`/webhooks/stripe`), não o da Stripe CLI
+   - `FRONTEND_URL`: URL pública do site, para onde o Stripe devolve o usuário depois do checkout
+   - `LIMITE_FAVORITOS_FREE` *(opcional)*: quantos favoritos o plano gratuito pode guardar (padrão `5`)
+   - Sem as `STRIPE_*`, a aplicação sobe normalmente e só `POST /api/premium/checkout` e `POST /webhooks/stripe` respondem `503`
    - `IMAGE_TAG` *(opcional)*: tag das imagens do GHCR (`latest` por padrão; use `sha-<commit>` para fixar uma versão)
 5. Clique em **Deploy the stack**. O Portainer baixa as imagens `ghcr.io/schinor/*` (catálogo, auth-service, log-service, garage, prometheus e grafana), sobe o Redis e conecta tudo na rede privada.
 

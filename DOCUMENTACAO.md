@@ -117,7 +117,7 @@ flowchart TB
         github["GitHub Actions + GHCR"]
     end
 
-    subgraph IAAS["🖥️ IaaS — VM no Proxmox da Fatec (Ubuntu + Docker), stack gerida pelo Portainer"]
+    subgraph IAAS["🖥️ IaaS — VM no Proxmox da Fatec (Ubuntu + Docker, administrada pelo professor), stack gerida pelo Portainer"]
         subgraph NET["🔒 Rede Docker filmes-network (10.20.30.0/28) — só o catalogo publica porta"]
             catalogo["<b>catalogo</b> :8000<br/>FastAPI + SPA Angular<br/>API gateway / BFF"]
             auth["<b>auth-service</b> :8001<br/>usuários, JWT, RBAC,<br/>reset de senha, premium"]
