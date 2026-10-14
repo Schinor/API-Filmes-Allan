@@ -17,9 +17,40 @@ Aplicação web fullstack para navegação no catálogo de filmes do ator Tom Ha
 | 5 | Logs e auditoria | [Auditoria: log-service + Redis Streams](#-auditoria-log-service--redis-streams) |
 | 6 | Upload e perfil | [Perfil de usuário e object storage (Garage)](#️-perfil-de-usuário-e-object-storage-garage) |
 | 7 | Plano Premium com Stripe (modo de teste) | [Plano Premium com Stripe](#-plano-premium-com-stripe), [Modelo de dados](#️-modelo-de-dados-schema) |
+| 8 | SaaS, PaaS, IaaS e documentação reversa | [Classificação SaaS/PaaS/IaaS](#️-saas-paas-e-iaas--em-qual-camada-cada-peça-vive), **[DOCUMENTACAO.md](DOCUMENTACAO.md)** (especificação, arquitetura, regras de negócio, modelo de dados) |
 | Extra | Swagger/OpenAPI | [Documentação da API](#-documentação-da-api-swagger--openapi) |
 | Extra | CI/CD | [CI/CD com GitHub Actions](#-cicd-com-github-actions) |
 | Extra | Observabilidade | [Observabilidade](#-observabilidade-health-checks-e-métricas) |
+
+> 📘 **Documentação completa do sistema:** [DOCUMENTACAO.md](DOCUMENTACAO.md) — a documentação reversa do HANK+, escrita lendo o código: o que o sistema faz para quem usa, o diagrama de todos os serviços, as 60 regras de negócio no formato "se X, então Y" e o modelo de dados.
+
+---
+
+## ☁️ SaaS, PaaS e IaaS — em qual camada cada peça vive
+
+**Atividade 8.** As três siglas dizem *quanto da pilha nós gerenciamos* e quanto o provedor gerencia por nós. O HANK+ usa as três ao mesmo tempo:
+
+```
+SaaS   Stripe · Mailtrap · TMDB · proxy HTTPS (Cloudflare) · GitHub Actions + GHCR      → só consumimos
+PaaS   catalogo · auth-service · log-service · Redis · Garage · Prometheus · Grafana    → só entregamos imagens + compose
+       MariaDB compartilhado                                                            → só recebemos a DATABASE_URL
+IaaS   VM no Proxmox da Fatec (Ubuntu + Docker)                                         → máquina, disco e rede
+```
+
+| Peça do sistema | Camada | Por quê |
+|---|---|---|
+| **VM no Proxmox da Fatec** (Ubuntu + Docker Engine) | **IaaS** | O provedor entrega só a máquina virtual, o disco e a rede; o sistema operacional e o Docker instalados nela são responsabilidade de quem administra a VM, não do Proxmox. |
+| **Portainer** (stack a partir do `docker-compose.yml`) | **PaaS** (a interface) | É o que transforma a VM numa plataforma: entregamos só o compose e as imagens, e ele cuida de baixar, subir, reiniciar (`restart: unless-stopped`) e ligar a rede, sem que a gente toque no SO. |
+| **catalogo**, **auth-service**, **log-service** | **PaaS** (nosso código) | São as nossas aplicações empacotadas como imagens (`ghcr.io/schinor/*`); só fazemos o deploy delas, o runtime (Docker) já está pronto. |
+| **Redis**, **Garage**, **Prometheus**, **Grafana** | **PaaS** (software de terceiros hospedado por nós) | Rodam em containers na nossa stack, então quem cuida deles (volumes, segredos, versão) somos nós. Repare no contraste: o Garage faz o papel do Amazon S3, mas como é *auto-hospedado* ele não é SaaS; se usássemos o S3 de verdade, o storage subiria para a camada de cima. |
+| **MariaDB compartilhado** | **PaaS** (banco gerenciado pela infra) | Não instalamos nem administramos o servidor de banco: recebemos só a `DATABASE_URL` e criamos nossas tabelas nele. |
+| **Domínio `lapps.studio` + proxy HTTPS (Cloudflare)** | **SaaS** | O certificado TLS e o encaminhamento do domínio público para a porta `${PORT}` do catálogo são um serviço pronto; não hospedamos nada disso. |
+| **Stripe** | **SaaS** | Pagamento como produto: a página de checkout, o processamento do cartão e o PCI-DSS são do Stripe. Nós só criamos a sessão pela API e recebemos o webhook. |
+| **Mailtrap** (SMTP) | **SaaS** | Provedor de e-mail transacional: o auth-service só se autentica no SMTP e manda o e-mail de recuperação; entrega, reputação e caixa de testes são do Mailtrap. |
+| **TMDB API** | **SaaS** | Os dados dos filmes vêm prontos por API; o catálogo não tem tabela de filmes. |
+| **GitHub Actions + GHCR** | **SaaS** | CI/CD e registro de imagens como serviço: escrevemos só o YAML do workflow; os runners e o armazenamento das imagens são do GitHub. |
+
+O diagrama com todas essas peças conectadas está em [DOCUMENTACAO.md → Arquitetura](DOCUMENTACAO.md#2-arquitetura--o-big-picture).
 
 ---
 
