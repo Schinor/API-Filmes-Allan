@@ -886,9 +886,9 @@ Workflow: [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
 
 O `docker-compose.yml` referencia `ghcr.io/schinor/<serviço>:${IMAGE_TAG:-latest}`. Para o deploy automático, crie a stack no Portainer a partir do repositório e ligue *Automatic updates* (polling ou webhook). Para fixar uma versão específica, defina `IMAGE_TAG=sha-<commit>` na stack.
 
-Execução verde de referência (commit `706c944`, que publicou `sha-706c944` + `latest`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/37078516642
+Execução verde de referência (commit `106d01b`, com as Atividades 7 e 8, que publicou `sha-106d01b` + `latest`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/39166805982
 
-Stack em produção fixada nessa versão com `IMAGE_TAG=sha-706c944` — todos os containers rodando a tag do commit e `healthy` (Grafana e Prometheus aparecem `running` porque não têm healthcheck):
+Execução verde anterior (commit `706c944`): https://github.com/Schinor/API-Filmes-Allan/actions/runs/37078516642. A stack em produção do print abaixo foi fixada nessa versão com `IMAGE_TAG=sha-706c944` — todos os containers rodando a tag do commit e `healthy` (Grafana e Prometheus aparecem `running` porque não têm healthcheck):
 
 ![Containers no Portainer rodando ghcr.io/schinor/*:sha-706c944, todos healthy](assets/SitePortainerComContainers.png)
 
