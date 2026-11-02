@@ -843,6 +843,7 @@ Roteiro da seção 7 executado **em produção** (https://marcio-mazega-isw055.l
 | 1. Usuário comum com 5 favoritos tenta o 6º: **403** com a mensagem do limite e o botão de assinar | ![Limite de 5 favoritos atingido no modal do filme](assets/SitePremiumLimite.png) |
 | 2. Checkout hospedado do Stripe (Sandbox), R$ 9,90/mês, com o cartão de teste `4242 4242 4242 4242` | ![Checkout do Stripe em modo de teste com o cartão 4242](assets/SitePremiumCheckout.png) |
 | 3. Depois do webhook `checkout.session.completed`: `premium: true`, `premium_desde` gravado e `limite_favoritos: null` (sem limite), valores lidos de `usuarios.premium` via auth-service | ![Status premium após o webhook](assets/SitePremiumStatus.png) |
+| 3b. A mesma mudança direto no MariaDB, tabela `usuarios`: o usuário de teste (id 15) com `premium = 1`, `premium_desde` preenchido e os IDs do Stripe gravados (ocultos no print); os demais seguem com `premium = 0` | ![usuarios.premium = 1 no MariaDB](assets/SiteStripe.png) |
 | 4. O 6º favorito entra (**201**) e o perfil mostra o selo ★ Premium | ![Perfil Premium com selo e 6 favoritos](assets/SitePremiumLiberado.png) |
 
 Também em produção: `POST /webhooks/stripe` sem assinatura responde **400** (webhook forjado recusado).
@@ -859,6 +860,32 @@ Sugestão do professor, **não implementada**: guardar no banco local só `id` +
 | | Usuários do plano gratuito precisariam virar Customers no Stripe sem nunca pagar |
 
 Conclusão: faz sentido para **dados de cobrança**, que é o que este projeto já faz (só os IDs do Stripe no banco). Identidade e autorização continuam no auth-service.
+
+### 10. Dificuldade encontrada: a tela de sucesso presa em "Processando pagamento…"
+
+**Sintoma.** No teste em produção (02/11/2026) o pagamento passou, o webhook chegou e o usuário virou Premium (o 6º favorito entrou e o selo apareceu), mas a página `/premium/sucesso` ficou **para sempre** em "Processando pagamento…". Nem o aviso de 15 s ("Quase lá") aparecia. Localmente e no CI nada disso acontecia.
+
+**Investigação.** Abrindo a página num navegador automatizado e registrando a rede, todas as chamadas a `/api/premium/status` terminavam em `net::ERR_ABORTED`, uma a cada 1,5 s. Medindo a rota com `curl`, ela levava **cerca de 3,1 s** em produção (o catálogo consulta o auth-service, que consulta o MariaDB compartilhado; localmente a mesma rota responde em milissegundos).
+
+**Causa.** O polling usava `timer(0, 1500)` com `switchMap`. O `switchMap` **cancela** a requisição anterior quando chega um novo tique. Com a resposta demorando mais que o intervalo, cada consulta era cancelada antes de responder, e a página nunca recebia nenhum status. O prazo de 15 s também não disparava, porque ele só era conferido dentro do `takeWhile`, isto é, quando chegava uma resposta.
+
+```
+tique 0 s ──► GET status ··· (3,1 s) ···✗ cancelada no tique de 1,5 s
+tique 1,5 s ► GET status ··· (3,1 s) ···✗ cancelada no tique de 3 s
+tique 3 s ──► GET status ··· (3,1 s) ···✗ ...   → nenhuma resposta chega, nunca
+```
+
+**Correção** em [`premium-sucesso.component.ts`](frontend/src/app/pages/premium/premium-sucesso.component.ts):
+
+| Antes | Depois | Por quê |
+|---|---|---|
+| `switchMap` | `exhaustMap` | Enquanto uma consulta está em andamento, os tiques seguintes são **ignorados** em vez de cancelá-la |
+| prazo conferido em `takeWhile` (só quando chega resposta) | `timeout({ first: 15000 })` | O prazo conta pelo **relógio**: em 15 s sem confirmação aparece "Quase lá", mesmo que nenhuma resposta tenha chegado |
+| um erro HTTP encerrava a espera | `catchError(() => EMPTY)` em cada consulta | Uma falha isolada não derruba o polling; o próximo tique tenta de novo |
+
+Validação: uma simulação em tempo virtual (`TestScheduler` do RxJS) com a latência medida em produção. Com 3,1 s de latência, a versão antiga nunca sai de "processando"; a nova mostra "Premium ativo!" na primeira resposta e "Quase lá" aos 15 s se o webhook atrasar. Com latência baixa as duas se comportam igual, o que explica por que o problema só apareceu em produção.
+
+**Lição.** Em polling, `switchMap` só é seguro quando a resposta é sempre mais rápida que o intervalo. Para "consultar até dar certo", `exhaustMap` (ou um intervalo que só começa depois da resposta) é o padrão, e o prazo máximo deve depender do relógio, não da chegada de respostas.
 
 ---
 

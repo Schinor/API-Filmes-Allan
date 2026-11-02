@@ -11,6 +11,7 @@
 3. [Regras de negócio — "se X, então Y"](#3-regras-de-negócio--se-x-então-y)
 4. [Modelo de dados](#4-modelo-de-dados)
 5. [Observações de quem herdou o código](#5-observações-de-quem-herdou-o-código)
+6. [Dificuldades encontradas depois da entrega](#6-dificuldades-encontradas-depois-da-entrega)
 
 ---
 
@@ -70,7 +71,7 @@ Os "planos" de usuário comum são papéis RBAC com nomes de filmes do Tom Hanks
 
 **Plano Premium** (`/premium/sucesso`, `/premium/cancelado`)
 - "Assinar Premium" (R$ 9,90/mês, Stripe em **modo de teste**) leva o usuário à página de pagamento hospedada pelo Stripe. O cartão é digitado **só** lá.
-- Ao voltar, a página de sucesso mostra "Processando pagamento…" e espera até 15 s a confirmação chegar pelo webhook. Ao confirmar, o limite de favoritos some e o selo aparece no perfil.
+- Ao voltar, a página de sucesso mostra "Processando pagamento…" e espera até 15 s a confirmação chegar pelo webhook. Ao confirmar, mostra "Premium ativo!", o limite de favoritos some e o selo aparece no perfil; se o prazo passar sem confirmação, mostra "Quase lá" e sugere conferir o perfil.
 
 **Gestão de usuários** (`/usuarios`, exige `gerenciar:usuarios`, na prática só admin)
 - Lista todos os usuários, troca o plano de um usuário, liga e desliga permissões individuais e remove contas (junto com favoritos, comentários, perfil e foto).
@@ -463,3 +464,9 @@ Ao ler o código para escrever este documento, apareceram pontos em que o compor
 8. **Tokens de reset antigos continuam valendo.** Usar um link marca só aquele token como usado; outros links pedidos antes dele seguem válidos até expirar.
 9. **CORS liberado para qualquer origem** (`allow_origins=["*"]`) no catálogo e no auth-service.
 10. **A contagem do limite de favoritos não é atômica.** Duas requisições simultâneas no 5º favorito podem passar as duas.
+
+## 6. Dificuldades encontradas depois da entrega
+
+A seção 5 registra o que foi encontrado **lendo** o código. Esta registra o que só apareceu **rodando** o sistema em produção, já com o Stripe configurado, e o que foi feito a respeito.
+
+1. **A página `/premium/sucesso` ficava presa em "Processando pagamento…" (corrigido em 02/11/2026).** Em produção, `GET /api/premium/status` leva cerca de 3,1 s, e a página consultava a cada 1,5 s com `switchMap`, que cancela a consulta anterior a cada novo tique. Nenhuma resposta chegava, então nem o "Premium ativo!" nem o aviso de 15 s apareciam, embora o webhook tivesse ativado o Premium normalmente. A correção (só no front) troca `switchMap` por `exhaustMap` e passa a contar o prazo de 15 s pelo relógio (`timeout`). As regras de negócio não mudaram: a página continua sem ativar nada (R47). Detalhes, diagnóstico e validação no [README → Dificuldade encontrada](README.md#10-dificuldade-encontrada-a-tela-de-sucesso-presa-em-processando-pagamento).
