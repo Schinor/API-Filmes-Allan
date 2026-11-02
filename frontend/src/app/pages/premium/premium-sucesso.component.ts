@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Subscription, timer } from 'rxjs';
-import { switchMap, takeWhile } from 'rxjs/operators';
+import { EMPTY, Subscription, timer } from 'rxjs';
+import { catchError, exhaustMap, first, timeout } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
 import { PremiumService } from '../../services/premium.service';
 
@@ -26,21 +26,20 @@ export class PremiumSucessoComponent implements OnInit, OnDestroy {
   estado = signal<'processando' | 'ativo' | 'demorando'>('processando');
 
   ngOnInit() {
-    const inicio = Date.now();
     this.sub = timer(0, INTERVALO_MS)
       .pipe(
-        switchMap(() => this.premium.status()),
-        takeWhile((s) => !s.premium && Date.now() - inicio < TIMEOUT_MS, true),
+        // exhaustMap, não switchMap: se o status demora mais que o intervalo, o próximo
+        // tique não pode cancelar a consulta em andamento (senão nenhuma resposta chega)
+        exhaustMap(() => this.premium.status().pipe(catchError(() => EMPTY))),
+        first((s) => s.premium),
+        // O prazo conta pelo relógio, não pelas respostas: vale mesmo se nenhuma chegar
+        timeout({ first: TIMEOUT_MS }),
       )
       .subscribe({
-        next: (s) => {
-          if (s.premium) {
-            this.estado.set('ativo');
-            // O JWT não carrega o plano; só atualiza o usuário guardado no navegador
-            this.auth.carregarPerfil();
-          } else if (Date.now() - inicio >= TIMEOUT_MS) {
-            this.estado.set('demorando');
-          }
+        next: () => {
+          this.estado.set('ativo');
+          // O JWT não carrega o plano; só atualiza o usuário guardado no navegador
+          this.auth.carregarPerfil();
         },
         error: () => this.estado.set('demorando'),
       });
