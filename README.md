@@ -802,7 +802,9 @@ docker compose -f docker-compose.dev.yml --profile stripe up --build
 docker compose -f docker-compose.dev.yml logs -f stripe-cli
 ```
 
-> O `whsec_` da CLI é **diferente** do segredo de um endpoint cadastrado no painel do Stripe. Não misture os dois. Webhook de produção cadastrado no painel ficou fora do escopo.
+> O `whsec_` da CLI é **diferente** do segredo de um endpoint cadastrado no painel do Stripe. Não misture os dois.
+
+**Em produção** não há Stripe CLI: o webhook é um endpoint cadastrado no painel do Stripe (*Developers → Webhooks*), apontando para `https://marcio-mazega-isw055.lapps.studio/webhooks/stripe`, com os eventos `checkout.session.completed` e `customer.subscription.deleted`. O `STRIPE_WEBHOOK_SECRET` da stack no Portainer é o *signing secret* **desse endpoint**. A Stripe CLI serve só para o desenvolvimento local.
 
 Sem Docker, com o catálogo rodando direto no host: `stripe listen --forward-to localhost:8000/webhooks/stripe`.
 
@@ -834,12 +836,16 @@ Sem Docker, com o catálogo rodando direto no host: `stripe listen --forward-to 
 
 ### 8. Prints
 
+Roteiro da seção 7 executado **em produção** (https://marcio-mazega-isw055.lapps.studio) em 02/11/2026, com um usuário de teste do plano **Preso no Terminal** (id 15) e o webhook cadastrado no painel do Stripe:
+
 | Entregável | Print |
 |---|---|
-| Checkout do Stripe (test mode) concluído | ![Checkout do Stripe concluído](assets/SitePremiumCheckout.png) |
-| Usuário com `premium = 1` após o webhook | ![premium = 1 no banco](assets/SitePremiumBanco.png) |
-| Usuário comum bloqueado no 6º favorito (403) | ![Limite de favoritos atingido](assets/SitePremiumLimite.png) |
-| Usuário Premium favoritando além do limite | ![Premium liberado](assets/SitePremiumLiberado.png) |
+| 1. Usuário comum com 5 favoritos tenta o 6º: **403** com a mensagem do limite e o botão de assinar | ![Limite de 5 favoritos atingido no modal do filme](assets/SitePremiumLimite.png) |
+| 2. Checkout hospedado do Stripe (Sandbox), R$ 9,90/mês, com o cartão de teste `4242 4242 4242 4242` | ![Checkout do Stripe em modo de teste com o cartão 4242](assets/SitePremiumCheckout.png) |
+| 3. Depois do webhook `checkout.session.completed`: `premium: true`, `premium_desde` gravado e `limite_favoritos: null` (sem limite), valores lidos de `usuarios.premium` via auth-service | ![Status premium após o webhook](assets/SitePremiumStatus.png) |
+| 4. O 6º favorito entra (**201**) e o perfil mostra o selo ★ Premium | ![Perfil Premium com selo e 6 favoritos](assets/SitePremiumLiberado.png) |
+
+Também em produção: `POST /webhooks/stripe` sem assinatura responde **400** (webhook forjado recusado).
 
 ### 9. Discussão: Stripe como gestor de usuários
 
